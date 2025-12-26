@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "manga_reader"
+version = "0.1.0"
+description = "A Linux desktop vocabulary companion for Japanese manga learners."
+authors = [
+    { name = "Pablo-mercado" }
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "PySide6>=6.5.0",       # Core GUI widgets
+    "janome",                   # Morphology and lemma normalization
+    "jamdict",                  # Dictionary lookups
+    "jamdict-data",             # The actual JMDict data files
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",                   # For unit and integration testing
+    "ruff",                     # Fast linter and code formatter
+    "black",                    # Code style consistency
+]
+
+[project.scripts]
+# This creates a command 'manga-reader' in your terminal
+manga-reader = "manga_reader.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["manga_reader*"]
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "I"] # Style, Errors, and Import sorting
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Define where the source code lives so PyTest can find the packages
+pythonpath = ["src"]
+# Add standard command-line arguments (verbose, colorful output)
+addopts = "-v --color=yes"
+# Register custom markers (optional but good for organizing)
+markers = [
+    "ui: tests involving PySide6 components",
+    "service: tests for morphology or dictionary logic",
+]
