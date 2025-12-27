@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #page-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        #page-image {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .ocr-block {
+            position: absolute;
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            font-size: 16px;
+            color: transparent;
+            cursor: pointer;
+            user-select: none;
+            z-index: 10;
+            background-color: transparent;
+        }
+
+        .ocr-block:hover {
+            background-color: rgba(255, 255, 0, 0.3) !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="page-container">
+        <img id="page-image" src="{image_filename}" alt="Manga Page">
+        {blocks_html}
+    </div>
+</body>
+</html>

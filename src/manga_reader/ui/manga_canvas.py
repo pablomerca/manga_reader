@@ -8,6 +8,10 @@ from PySide6.QtCore import QUrl, Signal
 from manga_reader.core import MangaPage
 
 
+# Template directory
+TEMPLATES_DIR = Path(__file__).parent / "assets"
+
+
 class MangaCanvas(QWidget):
     """Renders manga JPEG with vertical Japanese text overlays using QWebEngineView."""
     
@@ -53,65 +57,44 @@ class MangaCanvas(QWidget):
         Returns:
             HTML string
         """
+        # Load templates
+        block_template = self._load_template("block_template.html")
+        page_template = self._load_template("page_template.html")
+        
         # Generate OCR block overlays
         blocks_html = ""
         for idx, block in enumerate(page.ocr_blocks):
-            # Create div for each block with vertical text
-            blocks_html += f"""
-            <div class="ocr-block" style="
-                position: absolute;
-                left: {block.x}px;
-                top: {block.y}px;
-                width: {block.width}px;
-                height: {block.height}px;
-                writing-mode: vertical-rl;
-                text-orientation: upright;
-                font-size: 16px;
-                color: transparent;
-                cursor: pointer;
-                user-select: none;
-                z-index: 10;
-            " data-block-id="{idx}">
-                {block.full_text}
-            </div>
-            """
+            block_html = block_template.format(
+                x=block.x,
+                y=block.y,
+                width=block.width,
+                height=block.height,
+                block_id=idx,
+                text=block.full_text
+            )
+            blocks_html += block_html
         
-        # Complete HTML
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                body {{
-                    margin: 0;
-                    padding: 0;
-                    overflow: hidden;
-                }}
-                #page-container {{
-                    position: relative;
-                    display: inline-block;
-                }}
-                #page-image {{
-                    display: block;
-                    max-width: 100%;
-                    height: auto;
-                }}
-                .ocr-block:hover {{
-                    background-color: rgba(255, 255, 0, 0.3);
-                }}
-            </style>
-        </head>
-        <body>
-            <div id="page-container">
-                <img id="page-image" src="{page.image_path.name}" alt="Manga Page">
-                {blocks_html}
-            </div>
-        </body>
-        </html>
-        """
+        # Generate final HTML using safe substitution to avoid CSS braces conflict
+        html = page_template.replace(
+            "{image_filename}", page.image_path.name
+        ).replace(
+            "{blocks_html}", blocks_html
+        )
         
         return html
+    
+    def _load_template(self, filename: str) -> str:
+        """
+        Load a template file from the assets directory.
+        
+        Args:
+            filename: Name of the template file
+            
+        Returns:
+            Template content as string
+        """
+        template_path = TEMPLATES_DIR / filename
+        return template_path.read_text()
     
     def clear(self):
         """Clear the canvas."""
