@@ -1,9 +1,10 @@
 """Main Window - Application shell with menus and toolbar."""
 
 from pathlib import Path
+from typing import override
 from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QVBoxLayout, QWidget
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QAction
+from PySide6.QtCore import Signal, Qt
+from PySide6.QtGui import QAction, QKeyEvent
 
 
 class MainWindow(QMainWindow):
@@ -11,6 +12,9 @@ class MainWindow(QMainWindow):
     
     # Signal emitted when user selects a volume folder
     volume_opened = Signal(Path)
+    # Signals for page navigation
+    next_page = Signal()
+    previous_page = Signal()
     
     def __init__(self):
         super().__init__()
@@ -80,6 +84,21 @@ class MainWindow(QMainWindow):
         """Set the manga canvas widget in the main layout."""
         self.main_layout.addWidget(canvas)
     
+    def set_controller(self, controller):
+        """Inject the controller and wire UI signals to its slots.
+        
+        This keeps bootstrapping minimal while preserving dependency injection.
+        The controller is expected to expose methods:
+        - handle_volume_opened(Path)
+        - next_page()
+        - previous_page()
+        """
+        self._controller = controller
+        # Signal wiring
+        self.volume_opened.connect(controller.handle_volume_opened)
+        self.next_page.connect(controller.next_page)
+        self.previous_page.connect(controller.previous_page)
+    
     def show_error(self, title: str, message: str):
         """Display an error message to the user."""
         QMessageBox.critical(self, title, message)
@@ -87,3 +106,14 @@ class MainWindow(QMainWindow):
     def show_info(self, title: str, message: str):
         """Display an information message to the user."""
         QMessageBox.information(self, title, message)
+    
+    @override   
+    def keyPressEvent(self, event: QKeyEvent):
+        """Handle keyboard events for navigation."""
+        if event.key() == Qt.Key.Key_Right:
+            self.next_page.emit()
+        elif event.key() == Qt.Key.Key_Left:
+            self.previous_page.emit()
+        else:
+            # Pass other keys to parent
+            super().keyPressEvent(event)

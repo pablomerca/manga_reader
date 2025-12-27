@@ -33,8 +33,8 @@ def main():
         ingestor=ingestor
     )
     
-    # 5. Signal Wiring (Connect UI signals to Controller slots)
-    main_window.volume_opened.connect(controller.handle_volume_opened)
+    # 5. Inject controller into MainWindow and let it wire signals internally
+    main_window.set_controller(controller)
     
     # 6. Show UI and start event loop
     main_window.show()
