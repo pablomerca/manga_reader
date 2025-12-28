@@ -1,12 +1,12 @@
 """Manga Canvas - Renders manga pages with OCR overlays using QWebEngineView."""
 
 from pathlib import Path
-from PySide6.QtWidgets import QWidget, QVBoxLayout
-from PySide6.QtWebEngineWidgets import QWebEngineView
+
 from PySide6.QtCore import QUrl, Signal
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
-from manga_reader.core import MangaPage
-
+from manga_reader.core import MangaPage, OCRBlock
 
 # Template directory
 TEMPLATES_DIR = Path(__file__).parent / "assets"
@@ -66,6 +66,9 @@ class MangaCanvas(QWidget):
         # Generate OCR block overlays
         blocks_html = ""
         for idx, block in enumerate(page.ocr_blocks):
+            # Calculate optimal font size for this block
+            font_size = self._calculate_font_size(block)
+
             # Generate HTML for each text line within the block
             lines_html = ""
             for line_text in block.text_lines:
@@ -78,6 +81,7 @@ class MangaCanvas(QWidget):
                 y=block.y,
                 width=block.width,
                 height=block.height,
+                font_size=font_size,
                 block_id=idx,
                 lines_html=lines_html
             )
@@ -92,6 +96,36 @@ class MangaCanvas(QWidget):
         
         return html
     
+    def _calculate_font_size(self, block: OCRBlock) -> int:
+        """
+        Calculates the largest integer font size such that the text fills the block.
+        """
+        if not block.text_lines:
+            return 12  # Default fallback
+            
+        # Constants
+        SAFETY_MARGIN = 0.90  # 90% to be safe against rendering quirks
+        MIN_FONT_SIZE = 10
+        MAX_FONT_SIZE = 200
+        
+        # 1. Height Constraint: Longest line must fit vertically
+        max_chars = max((len(line) for line in block.text_lines), default=0)
+        if max_chars == 0:
+            return 12
+            
+        # height = char_size * num_chars
+        size_by_height = (block.height * SAFETY_MARGIN) / max_chars
+        
+        # 2. Width Constraint: All lines must fit horizontally
+        # width = font_size * num_lines
+        num_lines = len(block.text_lines)
+        size_by_width = (block.width * SAFETY_MARGIN) / num_lines
+        
+        # Optimal size is the minimum of constraints
+        optimal_size = min(size_by_height, size_by_width)
+        
+        return max(MIN_FONT_SIZE, min(int(optimal_size), MAX_FONT_SIZE))
+
     def _load_template(self, filename: str) -> str:
         """
         Load a template file from the assets directory.
