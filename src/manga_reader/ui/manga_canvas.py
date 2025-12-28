@@ -50,6 +50,7 @@ class MangaCanvas(QWidget):
     def _generate_html(self, page: MangaPage) -> str:
         """
         Generate HTML with CSS for rendering the page with vertical text overlays.
+        Uses lazy rendering with text hidden by default and visible on hover.
         
         Args:
             page: The MangaPage to render
@@ -59,18 +60,26 @@ class MangaCanvas(QWidget):
         """
         # Load templates
         block_template = self._load_template("block_template.html")
+        line_template = self._load_template("line_template.html")
         page_template = self._load_template("page_template.html")
         
         # Generate OCR block overlays
         blocks_html = ""
         for idx, block in enumerate(page.ocr_blocks):
+            # Generate HTML for each text line within the block
+            lines_html = ""
+            for line_text in block.text_lines:
+                line_html = line_template.format(line_text=line_text)
+                lines_html += line_html
+            
+            # Generate block HTML with lines
             block_html = block_template.format(
                 x=block.x,
                 y=block.y,
                 width=block.width,
                 height=block.height,
                 block_id=idx,
-                text=block.full_text
+                lines_html=lines_html
             )
             blocks_html += block_html
         
