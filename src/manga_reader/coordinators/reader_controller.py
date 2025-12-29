@@ -24,6 +24,7 @@ class ReaderController(QObject):
         # Session state
         self.current_volume: MangaVolume | None = None
         self.current_page_number: int = 0
+        self.view_mode: str = "single"  # "single" or "double"
     
     @Slot(Path)
     def handle_volume_opened(self, volume_path: Path):
@@ -65,30 +66,86 @@ class ReaderController(QObject):
         )
     
     def _render_current_page(self):
-        """Render the current page to the canvas."""
+        """Render the current page(s) to the canvas based on view mode."""
         if self.current_volume is None:
             return
         
-        page = self.current_volume.get_page(self.current_page_number)
-        if page:
-            self.canvas.render_page(page)
+        pages_to_render = self._get_pages_to_render()
+        if pages_to_render:
+            self.canvas.render_pages(pages_to_render)
+    
+    def _get_pages_to_render(self) -> list:
+        """
+        Determine which page(s) to render based on view mode and page orientation.
+        
+        Returns:
+            List of MangaPage objects to render
+        """
+        if self.current_volume is None:
+            return []
+        
+        current_page = self.current_volume.get_page(self.current_page_number)
+        if not current_page:
+            return []
+        
+        # Single page mode: always return one page
+        if self.view_mode == "single":
+            return [current_page]
+        
+        # Double page mode
+        # If current page is landscape, show only this page
+        if not current_page.is_portrait():
+            return [current_page]
+        
+        # Check if there's a next page
+        if self.current_page_number >= self.current_volume.total_pages - 1:
+            # Last page, show only current
+            return [current_page]
+        
+        next_page = self.current_volume.get_page(self.current_page_number + 1)
+        if not next_page:
+            return [current_page]
+        
+        # If next page is also portrait, show both
+        if next_page.is_portrait():
+            return [current_page, next_page]
+        
+        # Next page is landscape, show only current
+        return [current_page]
     
     def next_page(self):
-        """Navigate to the next page."""
+        """Navigate to the next page, skipping appropriately in double page mode."""
         if self.current_volume is None:
             return
         
-        if self.current_page_number < self.current_volume.total_pages - 1:
-            self.current_page_number += 1
+        # Determine how many pages to skip
+        pages_displayed = len(self._get_pages_to_render())
+        next_page_num = self.current_page_number + pages_displayed
+        
+        if next_page_num < self.current_volume.total_pages:
+            self.current_page_number = next_page_num
             self._render_current_page()
     
     def previous_page(self):
-        """Navigate to the previous page."""
+        """Navigate to the previous page, accounting for double page mode."""
         if self.current_volume is None:
             return
         
         if self.current_page_number > 0:
-            self.current_page_number -= 1
+            # In double page mode, we need to check if the previous spread was double
+            if self.view_mode == "double" and self.current_page_number >= 2:
+                # Check the page before current
+                prev_page = self.current_volume.get_page(self.current_page_number - 2)
+                current_prev = self.current_volume.get_page(self.current_page_number - 1)
+                
+                # If both are portrait, we were showing a double spread, go back 2
+                if prev_page and current_prev and prev_page.is_portrait() and current_prev.is_portrait():
+                    self.current_page_number -= 2
+                else:
+                    self.current_page_number -= 1
+            else:
+                self.current_page_number -= 1
+            
             self._render_current_page()
     
     def jump_to_page(self, page_number: int):
@@ -104,3 +161,18 @@ class ReaderController(QObject):
         if 0 <= page_number < self.current_volume.total_pages:
             self.current_page_number = page_number
             self._render_current_page()
+    
+    @Slot(str)
+    def handle_view_mode_changed(self, mode: str):
+        """
+        Handle view mode change from the UI.
+        
+        Args:
+            mode: Either "single" or "double"
+        """
+        if mode not in ("single", "double"):
+            return
+        
+        self.view_mode = mode
+        # Re-render current page(s) with new mode
+        self._render_current_page()

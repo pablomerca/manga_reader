@@ -27,7 +27,7 @@ def test_generate_html_injects_dynamic_style_and_scales_uniformly():
         # Patch image_path.name property
         page.image_path.name = 'image.jpg'
 
-        html = canvas._generate_html(page)
+        html = canvas._generate_html([page])
 
         # Expected scale: min(1000/2000, 1000/1000) = 0.5
         assert 'transform: scale(0.5);' in html
@@ -68,7 +68,7 @@ def test_centering_relies_on_flexbox_structure():
         )
         page.image_path.name = 'image.jpg'
 
-        html = canvas._generate_html(page)
+        html = canvas._generate_html([page])
 
         assert 'transform: scale(1.0);' in html
         

@@ -27,3 +27,7 @@ class MangaPage:
     def get_all_text(self) -> str:
         """Returns all text content on this page."""
         return "\n".join(block.full_text for block in self.ocr_blocks)
+    
+    def is_portrait(self) -> bool:
+        """Returns True if the page is in portrait orientation (height > width)."""
+        return self.height > self.width

@@ -31,33 +31,48 @@ class MangaCanvas(QWidget):
         
         self.current_page: MangaPage | None = None
     
+    def render_pages(self, pages: list[MangaPage]):
+        """
+        Render one or more manga pages with OCR overlays.
+        
+        Args:
+            pages: List of MangaPage objects to render
+        """
+        if not pages:
+            self.clear()
+            return
+        
+        self.current_page = pages[0]  # Keep reference to first page
+        
+        # Generate HTML content
+        html = self._generate_html(pages)
+        
+        # Load HTML into web view - use first page's directory as base
+        base_url = QUrl.fromLocalFile(str(pages[0].image_path.parent) + "/")
+        self.web_view.setHtml(html, base_url)
+    
     def render_page(self, page: MangaPage):
         """
-        Render a manga page with OCR overlays.
+        Render a single manga page with OCR overlays (legacy method).
         
         Args:
             page: The MangaPage to render
         """
-        self.current_page = page
-        
-        # Generate HTML content
-        html = self._generate_html(page)
-        
-        # Load HTML into web view
-        base_url = QUrl.fromLocalFile(str(page.image_path.parent) + "/")
-        self.web_view.setHtml(html, base_url)
+        self.render_pages([page])
     
-    def _generate_html(self, page: MangaPage) -> str:
+    def _generate_html(self, pages: list[MangaPage]) -> str:
         """
         Generate HTML with CSS for rendering the page(s).
         Acts as a coordinator for layout and content generation.
+        
+        Args:
+            pages: List of MangaPage objects to render (1 or 2 pages)
         """
         # 1. Load Templates
         page_template = self._load_template("page_template.html")
 
-        # 2. Generate Content HTML (for the single page)
-        # Future extensibility: iterate over a list of pages here
-        content_html, total_width, max_height = self._generate_page_html(page)
+        # 2. Generate Content HTML for all pages
+        content_html, total_width, max_height = self._generate_pages_html(pages)
 
         # 3. Calculate Layout & Scale
         try:
@@ -73,6 +88,7 @@ class MangaCanvas(QWidget):
         # 4. Inject Dynamic CSS (Layout)
         # We apply the scale to the content wrapper.
         # Flexbox in the template handles the centering.
+        page_gap = 20  # Gap between pages in double page mode
         dynamic_style: str = (
             "\n<style id=\"dynamic-fit-style\">\n"
             f"#content-wrapper {{ \n"
@@ -80,6 +96,8 @@ class MangaCanvas(QWidget):
             f"  height: {max_height}px;\n"
             f"  transform: scale({scale});\n"
             f"  transform-origin: center center;\n"
+            f"  display: flex;\n"
+            f"  gap: {page_gap}px;\n"
             "}\n"
             "</style>\n"
         )
@@ -93,6 +111,44 @@ class MangaCanvas(QWidget):
             html = dynamic_style + html
         
         return html
+    
+    def _generate_pages_html(self, pages: list[MangaPage]) -> tuple[str, int, int]:
+        """
+        Generates HTML for one or more page containers.
+        
+        For manga (right-to-left reading), pages are displayed in reverse order:
+        - In double page mode: current page on right, next page on left
+        
+        Args:
+            pages: List of MangaPage objects to render
+            
+        Returns:
+            Tuple of (html_string, total_width, max_height)
+        """
+        if not pages:
+            return "", 0, 0
+        
+        page_gap = 20  # Gap between pages
+        pages_html_list = []
+        total_width = 0
+        max_height = 0
+        
+        # Reverse pages for right-to-left reading order
+        # (current page appears on the right, next page on the left)
+        reversed_pages = list(reversed(pages))
+        
+        for page in reversed_pages:
+            page_html, page_width, page_height = self._generate_page_html(page)
+            pages_html_list.append(page_html)
+            total_width += page_width
+            max_height = max(max_height, page_height)
+        
+        # Add gap spacing for multiple pages
+        if len(pages) > 1:
+            total_width += page_gap * (len(pages) - 1)
+        
+        combined_html = "\n".join(pages_html_list)
+        return combined_html, total_width, max_height
 
     def _generate_page_html(self, page: MangaPage) -> tuple[str, int, int]:
         """
