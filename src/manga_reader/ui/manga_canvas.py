@@ -105,6 +105,10 @@ class MangaCanvas(QWidget):
         scale = min(viewport_w / max(page.width, 1), viewport_h / max(page.height, 1))
         if scale <= 0:
             scale = 1.0
+            
+        # Calculate horizontal centering offset
+        scaled_width: float = page.width * scale
+        x_offset: float = max(0, (viewport_w - scaled_width) / 2)
 
         # Inject dynamic CSS to scale both image and overlays uniformly
         dynamic_style = (
@@ -114,6 +118,9 @@ class MangaCanvas(QWidget):
             f"  height: {page.height}px;\n"
             f"  transform: scale({scale});\n"
             f"  transform-origin: top left;\n"
+            f"  position: absolute;\n"
+            f"  left: {x_offset}px;\n"
+            f"  top: 0px;\n"
             "}\n"
             f"#page-image {{\n"
             f"  width: {page.width}px;\n"
