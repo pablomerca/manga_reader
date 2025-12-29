@@ -93,6 +93,41 @@ class MangaCanvas(QWidget):
         ).replace(
             "{blocks_html}", blocks_html
         )
+
+        # Compute scale to fit the entire page within the current viewport
+        try:
+            viewport_w = max(int(self.web_view.width()), 1)
+            viewport_h = max(int(self.web_view.height()), 1)
+        except Exception:
+            viewport_w, viewport_h = page.width, page.height
+
+        # Fit-to-screen scale: ensure both dimensions fit
+        scale = min(viewport_w / max(page.width, 1), viewport_h / max(page.height, 1))
+        if scale <= 0:
+            scale = 1.0
+
+        # Inject dynamic CSS to scale both image and overlays uniformly
+        dynamic_style = (
+            "\n<style id=\"dynamic-fit-style\">\n"
+            f"#page-container {{\n"
+            f"  width: {page.width}px;\n"
+            f"  height: {page.height}px;\n"
+            f"  transform: scale({scale});\n"
+            f"  transform-origin: top left;\n"
+            "}\n"
+            f"#page-image {{\n"
+            f"  width: {page.width}px;\n"
+            f"  height: {page.height}px;\n"
+            "}\n"
+            "</style>\n"
+        )
+
+        # Place the dynamic style inside the <head> to override defaults
+        if "</head>" in html:
+            html = html.replace("</head>", dynamic_style + "</head>")
+        else:
+            # Fallback: prepend style if template was modified
+            html = dynamic_style + html
         
         return html
     
