@@ -30,13 +30,15 @@ def test_generate_html_injects_dynamic_style_and_scales_uniformly():
         html = canvas._generate_html([page])
 
         # Expected scale: min(1000/2000, 1000/1000) = 0.5
-        assert 'transform: scale(0.5);' in html
+        # We now use CSS variables for scaling
+        assert '--content-scale: 0.5;' in html
         assert 'transform-origin: center center;' in html
         
         # Verify content wrapper structure
         assert '#content-wrapper' in html
-        assert 'width: 2000px;' in html
-        assert 'height: 1000px;' in html
+        # Check for CSS variables defining the dimensions
+        assert '--content-width: 2000px;' in html
+        assert '--content-height: 1000px;' in html
         
         # Verify page content generation
         assert 'class="page-container"' in html
@@ -70,12 +72,12 @@ def test_centering_relies_on_flexbox_structure():
 
         html = canvas._generate_html([page])
 
-        assert 'transform: scale(1.0);' in html
+        assert '--content-scale: 1.0;' in html
         
         # We no longer calculate manual offsets in Python
         assert 'left:' not in html 
         assert 'top:' not in html
         
-        # Ensure the content wrapper has the correct unscaled dimensions
-        assert 'width: 500px;' in html
-        assert 'height: 1000px;' in html
+        # Ensure the content wrapper has the correct unscaled dimensions via CSS vars
+        assert '--content-width: 500px;' in html
+        assert '--content-height: 1000px;' in html

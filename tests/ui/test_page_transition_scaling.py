@@ -46,11 +46,11 @@ def test_per_page_scale_recalculation_on_transition():
         second_html = calls[1].args[0]
 
         # First render scales to 0.5 and sets container dims to 2400x1200
-        assert 'transform: scale(0.5);' in first_html
-        assert 'width: 2400px;' in first_html
-        assert 'height: 1200px;' in first_html
+        assert '--content-scale: 0.5;' in first_html
+        assert '--content-width: 2400px;' in first_html
+        assert '--content-height: 1200px;' in first_html
 
         # Second render re-computes scale (~0.3333) and sets container dims to 1200x2400
-        assert 'transform: scale(0.333' in second_html  # robust prefix check
-        assert 'width: 1200px;' in second_html
-        assert 'height: 2400px;' in second_html
+        assert '--content-scale: 0.333' in second_html  # robust prefix check
+        assert '--content-width: 1200px;' in second_html
+        assert '--content-height: 2400px;' in second_html

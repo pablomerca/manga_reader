@@ -55,11 +55,21 @@
         .ocr-block:hover .ocr-line {
             opacity: 1;
         }
+
+        #content-wrapper {
+            position: relative;
+            width: var(--content-width);
+            height: var(--content-height);
+            transform: scale(var(--content-scale));
+            transform-origin: center center;
+            display: flex;
+            gap: var(--page-gap);
+        }
     </style>
 </head>
-<body>
+<body style="{css_vars}">
     <div id="viewport" style="width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center;">
-        <div id="content-wrapper" style="position: relative;">
+        <div id="content-wrapper">
             {content_html}
         </div>
     </div>

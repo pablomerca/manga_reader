@@ -85,30 +85,19 @@ class MangaCanvas(QWidget):
         if scale <= 0:
             scale = 1.0
 
-        # 4. Inject Dynamic CSS (Layout)
-        # We apply the scale to the content wrapper.
-        # Flexbox in the template handles the centering.
+        # 4. Prepare CSS Variables
+        # We apply the scale to the content wrapper via CSS variables
         page_gap = 20  # Gap between pages in double page mode
-        dynamic_style: str = (
-            "\n<style id=\"dynamic-fit-style\">\n"
-            f"#content-wrapper {{ \n"
-            f"  width: {total_width}px;\n"
-            f"  height: {max_height}px;\n"
-            f"  transform: scale({scale});\n"
-            f"  transform-origin: center center;\n"
-            f"  display: flex;\n"
-            f"  gap: {page_gap}px;\n"
-            "}\n"
-            "</style>\n"
+        
+        css_vars = (
+            f"--content-width: {total_width}px; "
+            f"--content-height: {max_height}px; "
+            f"--content-scale: {scale}; "
+            f"--page-gap: {page_gap}px;"
         )
 
         # 5. Assemble Final HTML
-        html = page_template.replace("{content_html}", content_html)
-        
-        if "</head>" in html:
-            html = html.replace("</head>", dynamic_style + "</head>")
-        else:
-            html = dynamic_style + html
+        html = page_template.replace("{css_vars}", css_vars).replace("{content_html}", content_html)
         
         return html
     
@@ -159,15 +148,15 @@ class MangaCanvas(QWidget):
         """
         blocks_html = self._generate_ocr_html(page)
         
-        # Structure for a single page
-        # Note: we use inline styles for the page container to set its exact size
-        # This allows multiple pages to be positioned relatively if needed in future
-        page_html = (
-            f'<div class="page-container" style="width: {page.width}px; height: {page.height}px;">\n'
-            f'    <img class="page-image" src="{page.image_path.name}" alt="Manga Page">\n'
-            f'    {blocks_html}\n'
-            f'</div>'
+        container_template = self._load_template("page_container_template.html")
+        
+        page_html = container_template.format(
+            width=page.width,
+            height=page.height,
+            image_name=page.image_path.name,
+            blocks_html=blocks_html
         )
+        
         return page_html, page.width, page.height
 
     def _generate_ocr_html(self, page: MangaPage) -> str:
