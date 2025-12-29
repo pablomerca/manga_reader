@@ -49,34 +49,85 @@ class MangaCanvas(QWidget):
     
     def _generate_html(self, page: MangaPage) -> str:
         """
-        Generate HTML with CSS for rendering the page with vertical text overlays.
-        Uses lazy rendering with text hidden by default and visible on hover.
-        
-        Args:
-            page: The MangaPage to render
-            
-        Returns:
-            HTML string
+        Generate HTML with CSS for rendering the page(s).
+        Acts as a coordinator for layout and content generation.
         """
-        # Load templates
+        # 1. Load Templates
+        page_template = self._load_template("page_template.html")
+
+        # 2. Generate Content HTML (for the single page)
+        # Future extensibility: iterate over a list of pages here
+        content_html, total_width, max_height = self._generate_page_html(page)
+
+        # 3. Calculate Layout & Scale
+        try:
+            viewport_w = max(int(self.web_view.width()), 1)
+            viewport_h = max(int(self.web_view.height()), 1)
+        except Exception:
+            viewport_w, viewport_h = total_width, max_height
+
+        scale = min(viewport_w / max(total_width, 1), viewport_h / max(max_height, 1))
+        if scale <= 0:
+            scale = 1.0
+
+        # 4. Inject Dynamic CSS (Layout)
+        # We apply the scale to the content wrapper.
+        # Flexbox in the template handles the centering.
+        dynamic_style: str = (
+            "\n<style id=\"dynamic-fit-style\">\n"
+            f"#content-wrapper {{ \n"
+            f"  width: {total_width}px;\n"
+            f"  height: {max_height}px;\n"
+            f"  transform: scale({scale});\n"
+            f"  transform-origin: center center;\n"
+            "}\n"
+            "</style>\n"
+        )
+
+        # 5. Assemble Final HTML
+        html = page_template.replace("{content_html}", content_html)
+        
+        if "</head>" in html:
+            html = html.replace("</head>", dynamic_style + "</head>")
+        else:
+            html = dynamic_style + html
+        
+        return html
+
+    def _generate_page_html(self, page: MangaPage) -> tuple[str, int, int]:
+        """
+        Generates HTML for a single page container including image and OCR blocks.
+        
+        Returns:
+            Tuple of (html_string, width, height)
+        """
+        blocks_html = self._generate_ocr_html(page)
+        
+        # Structure for a single page
+        # Note: we use inline styles for the page container to set its exact size
+        # This allows multiple pages to be positioned relatively if needed in future
+        page_html = (
+            f'<div class="page-container" style="width: {page.width}px; height: {page.height}px;">\n'
+            f'    <img class="page-image" src="{page.image_path.name}" alt="Manga Page">\n'
+            f'    {blocks_html}\n'
+            f'</div>'
+        )
+        return page_html, page.width, page.height
+
+    def _generate_ocr_html(self, page: MangaPage) -> str:
+        """Generates HTML for all OCR blocks on the page."""
         block_template = self._load_template("block_template.html")
         line_template = self._load_template("line_template.html")
-        page_template = self._load_template("page_template.html")
         
-        # Generate OCR block overlays
         blocks_html = ""
         for idx, block in enumerate(page.ocr_blocks):
-            # Calculate optimal font size for this block
             font_size = self._calculate_font_size(block)
 
-            # Generate HTML for each text line within the block
             lines_html = ""
             for line_text in block.text_lines:
-                line_html = line_template.format(line_text=line_text)
-                lines_html += line_html
+                lines_html += line_template.format(line_text=line_text)
             
-            # Generate block HTML with lines
-            block_html = block_template.format(
+            blocks_html += block_template.format(
                 x=block.x,
                 y=block.y,
                 width=block.width,
@@ -85,58 +136,7 @@ class MangaCanvas(QWidget):
                 block_id=idx,
                 lines_html=lines_html
             )
-            blocks_html += block_html
-        
-        # Generate final HTML using safe substitution to avoid CSS braces conflict
-        html = page_template.replace(
-            "{image_filename}", page.image_path.name
-        ).replace(
-            "{blocks_html}", blocks_html
-        )
-
-        # Compute scale to fit the entire page within the current viewport
-        try:
-            viewport_w = max(int(self.web_view.width()), 1)
-            viewport_h = max(int(self.web_view.height()), 1)
-        except Exception:
-            viewport_w, viewport_h = page.width, page.height
-
-        # Fit-to-screen scale: ensure both dimensions fit
-        scale = min(viewport_w / max(page.width, 1), viewport_h / max(page.height, 1))
-        if scale <= 0:
-            scale = 1.0
-            
-        # Calculate horizontal centering offset
-        scaled_width: float = page.width * scale
-        x_offset: float = max(0, (viewport_w - scaled_width) / 2)
-
-        # Inject dynamic CSS to scale both image and overlays uniformly
-        dynamic_style = (
-            "\n<style id=\"dynamic-fit-style\">\n"
-            f"#page-container {{\n"
-            f"  width: {page.width}px;\n"
-            f"  height: {page.height}px;\n"
-            f"  transform: scale({scale});\n"
-            f"  transform-origin: top left;\n"
-            f"  position: absolute;\n"
-            f"  left: {x_offset}px;\n"
-            f"  top: 0px;\n"
-            "}\n"
-            f"#page-image {{\n"
-            f"  width: {page.width}px;\n"
-            f"  height: {page.height}px;\n"
-            "}\n"
-            "</style>\n"
-        )
-
-        # Place the dynamic style inside the <head> to override defaults
-        if "</head>" in html:
-            html = html.replace("</head>", dynamic_style + "</head>")
-        else:
-            # Fallback: prepend style if template was modified
-            html = dynamic_style + html
-        
-        return html
+        return blocks_html
     
     def _calculate_font_size(self, block: OCRBlock) -> int:
         """

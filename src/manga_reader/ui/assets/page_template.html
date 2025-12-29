@@ -7,17 +7,21 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
+            background-color: #333; /* Dark background for better reading */
         }
 
-        #page-container {
+        /* Generic page container class */
+        .page-container {
             position: relative;
             display: inline-block;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
 
-        #page-image {
+        .page-image {
             display: block;
-            max-width: 100%;
-            height: auto;
+            width: 100%;
+            height: 100%;
         }
 
         .ocr-block {
@@ -53,9 +57,10 @@
     </style>
 </head>
 <body>
-    <div id="page-container">
-        <img id="page-image" src="{image_filename}" alt="Manga Page">
-        {blocks_html}
+    <div id="viewport" style="width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center;">
+        <div id="content-wrapper" style="position: relative;">
+            {content_html}
+        </div>
     </div>
 </body>
 </html>

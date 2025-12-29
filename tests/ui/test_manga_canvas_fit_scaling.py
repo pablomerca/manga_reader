@@ -31,19 +31,23 @@ def test_generate_html_injects_dynamic_style_and_scales_uniformly():
 
         # Expected scale: min(1000/2000, 1000/1000) = 0.5
         assert 'transform: scale(0.5);' in html
-        assert 'transform-origin: top left;' in html
+        assert 'transform-origin: center center;' in html
         
-        # Check centering logic:
-        # scaled_width = 2000 * 0.5 = 1000. Viewport 1000. Offset = (1000-1000)/2 = 0
-        assert 'left: 0px;' in html
-
-        # Ensure natural dimensions are set for container and image
-        assert '#page-container' in html
-        assert '#page-image' in html
+        # Verify content wrapper structure
+        assert '#content-wrapper' in html
         assert 'width: 2000px;' in html
         assert 'height: 1000px;' in html
+        
+        # Verify page content generation
+        assert 'class="page-container"' in html
+        assert 'class="page-image"' in html
 
-def test_centering_offset_calculation():
+
+def test_centering_relies_on_flexbox_structure():
+    """
+    Verify that the HTML structure supports flexbox centering 
+    (no manual left/top offsets in Python).
+    """
     # Setup a canvas with mocked QWebEngineView size
     with patch('manga_reader.ui.manga_canvas.QWidget.__init__'), \
          patch('manga_reader.ui.manga_canvas.QVBoxLayout'), \
@@ -55,8 +59,6 @@ def test_centering_offset_calculation():
 
         canvas = MangaCanvas()
 
-        # Page fits vertically, but is narrow: 500x1000
-        # Scale: min(1000/500=2, 1000/1000=1) = 1.0
         page = MangaPage(
             page_number=0,
             image_path=MagicMock(name='image.jpg'),
@@ -69,6 +71,11 @@ def test_centering_offset_calculation():
         html = canvas._generate_html(page)
 
         assert 'transform: scale(1.0);' in html
-        # Scaled width = 500 * 1 = 500
-        # Offset = (1000 - 500) / 2 = 250
-        assert 'left: 250.0px;' in html
+        
+        # We no longer calculate manual offsets in Python
+        assert 'left:' not in html 
+        assert 'top:' not in html
+        
+        # Ensure the content wrapper has the correct unscaled dimensions
+        assert 'width: 500px;' in html
+        assert 'height: 1000px;' in html
