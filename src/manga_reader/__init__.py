@@ -12,7 +12,7 @@ __version__ = "0.1.0"
 __author__ = "Pablo-mercado"
 
 # Make key components available at package level
-from manga_reader.core import MangaVolume, MangaPage, OCRBlock
+from manga_reader.core import MangaPage, MangaVolume, OCRBlock
 from manga_reader.io import VolumeIngestor
 
 __all__ = [

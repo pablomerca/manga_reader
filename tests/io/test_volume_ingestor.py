@@ -4,7 +4,7 @@ Tests for VolumeIngestor - validates volume ingestion from Mokuro format.
 """
 
 from pathlib import Path
-import pytest
+
 from manga_reader.io import VolumeIngestor
 
 

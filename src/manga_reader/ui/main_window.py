@@ -2,9 +2,16 @@
 
 from pathlib import Path
 from typing import override
-from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QVBoxLayout, QWidget
-from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QAction, QKeyEvent, QActionGroup
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction, QActionGroup, QKeyEvent
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QMainWindow,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class MainWindow(QMainWindow):
@@ -111,6 +118,17 @@ class MainWindow(QMainWindow):
     def set_canvas(self, canvas):
         """Set the manga canvas widget in the main layout."""
         self.main_layout.addWidget(canvas)
+        
+        # Connect canvas navigation signals (from browser/keyboard)
+        # Note: Canvas emits 'next'/'prev' strings
+        canvas.navigation_requested.connect(self._on_canvas_navigation)
+    
+    def _on_canvas_navigation(self, direction: str):
+        """Handle navigation requests from the canvas."""
+        if direction == "next":
+            self.next_page.emit()
+        elif direction == "prev":
+            self.previous_page.emit()
     
     def set_controller(self, controller):
         """Inject the controller and wire UI signals to its slots.

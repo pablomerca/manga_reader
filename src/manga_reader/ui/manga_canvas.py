@@ -1,8 +1,10 @@
 """Manga Canvas - Renders manga pages with OCR overlays using QWebEngineView."""
 
+import json
 from pathlib import Path
 
-from PySide6.QtCore import QUrl, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, QUrl, Signal, Slot
+from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
@@ -12,11 +14,35 @@ from manga_reader.core import MangaPage, OCRBlock
 TEMPLATES_DIR = Path(__file__).parent / "assets"
 
 
+class WebConnector(QObject):
+    """Bridge between Python and JavaScript."""
+    
+    # We no longer need a signal here to push data. 
+    # We will use runJavaScript() for that.
+    
+    # Signal to notify Python that a block was clicked
+    blockClickedSignal = Signal(int, int)  # id, ? might pass ID or metadata
+
+    def __init__(self):
+        super().__init__()
+
+    @Slot(int)
+    def blockClicked(self, block_id):
+        """Called from JS when a block is clicked."""
+        print(f"DEBUG: Python received block click: {block_id}")
+        # For now we just print or emit a generic signal.
+        # Ideally we map ID back to page/block. 
+        # But for this refactor let's just keep the connection alive.
+        pass
+
+
 class MangaCanvas(QWidget):
     """Renders manga JPEG with vertical Japanese text overlays using QWebEngineView."""
     
     # Signal emitted when user clicks on a text block
     block_clicked = Signal(int, int)  # x, y coordinates
+    # Signal emitted for navigation (preventing browser scroll)
+    navigation_requested = Signal(str) # "next" or "prev"
     
     def __init__(self):
         super().__init__()
@@ -27,10 +53,43 @@ class MangaCanvas(QWidget):
         
         # Create web view for rendering
         self.web_view = QWebEngineView()
+        
+        # Install event filter to capture keys before browser
+        self.web_view.installEventFilter(self)
+        # Often the focus proxy handles the actual input events in WebEngine
+        if self.web_view.focusProxy():
+            self.web_view.focusProxy().installEventFilter(self)
+        
+        # 1. Setup WebChannel
+        print("DEBUG: Setting up QWebChannel...")
+        self.bridge = WebConnector()
+        self.channel = QWebChannel()
+        self.channel.registerObject("connector", self.bridge)
+        self.web_view.page().setWebChannel(self.channel)
+        print("DEBUG: QWebChannel setup complete. Connector registered.")
+        
         layout.addWidget(self.web_view)
         
         self.current_page: MangaPage | None = None
-    
+        
+        # 2. Load the static HTML viewer
+        viewer_path = TEMPLATES_DIR / "viewer.html"
+        print(f"DEBUG: Loading viewer from {viewer_path}")
+        self.web_view.load(QUrl.fromLocalFile(str(viewer_path)))
+
+    def eventFilter(self, obj, event):
+        """Intercept key events to prevent browser scrolling/navigation."""
+        if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if key == Qt.Key.Key_Left:
+                self.navigation_requested.emit("next") # RTL: Left is Next
+                return True # Consume event
+            elif key == Qt.Key.Key_Right:
+                self.navigation_requested.emit("prev") # RTL: Right is Previous
+                return True # Consume event
+        
+        return super().eventFilter(obj, event)
+
     def render_pages(self, pages: list[MangaPage]):
         """
         Render one or more manga pages with OCR overlays.
@@ -42,14 +101,18 @@ class MangaCanvas(QWidget):
             self.clear()
             return
         
-        self.current_page = pages[0]  # Keep reference to first page
+        self.current_page = pages[0]  # Keep reference
         
-        # Generate HTML content
-        html = self._generate_html(pages)
+        # Prepare data for JS
+        data = self._prepare_data(pages)
         
-        # Load HTML into web view - use first page's directory as base
-        base_url = QUrl.fromLocalFile(str(pages[0].image_path.parent) + "/")
-        self.web_view.setHtml(html, base_url)
+        # Send data to JS via runJavaScript (Most robust method)
+        # We assume 'updateView' is available globally in the loaded page.
+        # json.dumps converts the dict to a JSON string that JS can parse or eval.
+        json_data = json.dumps(data)
+        script = f"updateView({json_data});"
+        
+        self.web_view.page().runJavaScript(script)
     
     def render_page(self, page: MangaPage):
         """
@@ -60,128 +123,45 @@ class MangaCanvas(QWidget):
         """
         self.render_pages([page])
     
-    def _generate_html(self, pages: list[MangaPage]) -> str:
+    def _prepare_data(self, pages: list[MangaPage]) -> dict:
         """
-        Generate HTML with CSS for rendering the page(s).
-        Acts as a coordinator for layout and content generation.
-        
-        Args:
-            pages: List of MangaPage objects to render (1 or 2 pages)
+        Convert Python objects to JSON-serializable dict for JS.
         """
-        # 1. Load Templates
-        page_template = self._load_template("page_template.html")
-
-        # 2. Generate Content HTML for all pages
-        content_html, total_width, max_height = self._generate_pages_html(pages)
-
-        # 3. Calculate Layout & Scale
-        try:
-            viewport_w = max(int(self.web_view.width()), 1)
-            viewport_h = max(int(self.web_view.height()), 1)
-        except Exception:
-            viewport_w, viewport_h = total_width, max_height
-
-        scale = min(viewport_w / max(total_width, 1), viewport_h / max(max_height, 1))
-        if scale <= 0:
-            scale = 1.0
-
-        # 4. Prepare CSS Variables
-        # We apply the scale to the content wrapper via CSS variables
-        page_gap = 20  # Gap between pages in double page mode
+        pages_data = []
         
-        css_vars = (
-            f"--content-width: {total_width}px; "
-            f"--content-height: {max_height}px; "
-            f"--content-scale: {scale}; "
-            f"--page-gap: {page_gap}px;"
-        )
-
-        # 5. Assemble Final HTML
-        html = page_template.replace("{css_vars}", css_vars).replace("{content_html}", content_html)
-        
-        return html
-    
-    def _generate_pages_html(self, pages: list[MangaPage]) -> tuple[str, int, int]:
-        """
-        Generates HTML for one or more page containers.
-        
-        For manga (right-to-left reading), pages are displayed in reverse order:
-        - In double page mode: current page on right, next page on left
-        
-        Args:
-            pages: List of MangaPage objects to render
-            
-        Returns:
-            Tuple of (html_string, total_width, max_height)
-        """
-        if not pages:
-            return "", 0, 0
-        
-        page_gap = 20  # Gap between pages
-        pages_html_list = []
-        total_width = 0
-        max_height = 0
-        
-        # Reverse pages for right-to-left reading order
-        # (current page appears on the right, next page on the left)
+        # Reverse pages for right-to-left reading order (Visual Order: Left -> Right)
+        # If pages=[P1, P2], we want to display P2 on Left, P1 on Right.
         reversed_pages = list(reversed(pages))
         
         for page in reversed_pages:
-            page_html, page_width, page_height = self._generate_page_html(page)
-            pages_html_list.append(page_html)
-            total_width += page_width
-            max_height = max(max_height, page_height)
-        
-        # Add gap spacing for multiple pages
-        if len(pages) > 1:
-            total_width += page_gap * (len(pages) - 1)
-        
-        combined_html = "\n".join(pages_html_list)
-        return combined_html, total_width, max_height
+            pages_data.append(self._serialize_page(page))
+            
+        return {
+            "pages": pages_data,
+            "gap": 20
+        }
 
-    def _generate_page_html(self, page: MangaPage) -> tuple[str, int, int]:
-        """
-        Generates HTML for a single page container including image and OCR blocks.
-        
-        Returns:
-            Tuple of (html_string, width, height)
-        """
-        blocks_html = self._generate_ocr_html(page)
-        
-        container_template = self._load_template("page_container_template.html")
-        
-        page_html = container_template.format(
-            width=page.width,
-            height=page.height,
-            image_name=page.image_path.name,
-            blocks_html=blocks_html
-        )
-        
-        return page_html, page.width, page.height
-
-    def _generate_ocr_html(self, page: MangaPage) -> str:
-        """Generates HTML for all OCR blocks on the page."""
-        block_template = self._load_template("block_template.html")
-        line_template = self._load_template("line_template.html")
-        
-        blocks_html = ""
+    def _serialize_page(self, page: MangaPage) -> dict:
+        """Convert single page to dict."""
+        blocks_data = []
         for idx, block in enumerate(page.ocr_blocks):
             font_size = self._calculate_font_size(block)
-
-            lines_html = ""
-            for line_text in block.text_lines:
-                lines_html += line_template.format(line_text=line_text)
+            blocks_data.append({
+                "id": idx, # Simple ID for now
+                "x": block.x,
+                "y": block.y,
+                "width": block.width,
+                "height": block.height,
+                "fontSize": font_size,
+                "lines": block.text_lines
+            })
             
-            blocks_html += block_template.format(
-                x=block.x,
-                y=block.y,
-                width=block.width,
-                height=block.height,
-                font_size=font_size,
-                block_id=idx,
-                lines_html=lines_html
-            )
-        return blocks_html
+        return {
+            "imageUrl": QUrl.fromLocalFile(str(page.image_path)).toString(),
+            "width": page.width,
+            "height": page.height,
+            "blocks": blocks_data
+        }
     
     def _calculate_font_size(self, block: OCRBlock) -> int:
         """
@@ -213,20 +193,9 @@ class MangaCanvas(QWidget):
         
         return max(MIN_FONT_SIZE, min(int(optimal_size), MAX_FONT_SIZE))
 
-    def _load_template(self, filename: str) -> str:
-        """
-        Load a template file from the assets directory.
-        
-        Args:
-            filename: Name of the template file
-            
-        Returns:
-            Template content as string
-        """
-        template_path = TEMPLATES_DIR / filename
-        return template_path.read_text()
-    
     def clear(self):
         """Clear the canvas."""
         self.current_page = None
-        self.web_view.setHtml("<html><body></body></html>")
+        # Send empty data
+        self.web_view.page().runJavaScript("updateView({pages: []});")
+

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from manga_reader.core import MangaVolume, MangaPage, OCRBlock
+from manga_reader.core import MangaPage, MangaVolume, OCRBlock
 
 
 class VolumeIngestor:

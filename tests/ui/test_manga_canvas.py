@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -11,7 +11,15 @@ def manga_canvas():
     """Fixture to create MangaCanvas instance with mocked init."""
     with patch('manga_reader.ui.manga_canvas.QWidget.__init__'), \
          patch('manga_reader.ui.manga_canvas.QVBoxLayout'), \
-         patch('manga_reader.ui.manga_canvas.QWebEngineView'):
+         patch('manga_reader.ui.manga_canvas.QWebEngineView') as MockView, \
+         patch('manga_reader.ui.manga_canvas.QWebChannel'), \
+         patch('manga_reader.ui.manga_canvas.WebConnector'):
+        
+        # Setup mock view
+        mock_view_instance = MockView.return_value
+        mock_view_instance.focusProxy.return_value = MagicMock()
+        mock_view_instance.page.return_value = MagicMock()
+        
         canvas = MangaCanvas()
         return canvas
 

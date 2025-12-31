@@ -1,6 +1,7 @@
 """Reader Controller - Central coordinator for the reading session."""
 
 from pathlib import Path
+
 from PySide6.QtCore import QObject, Slot
 
 from manga_reader.core import MangaVolume

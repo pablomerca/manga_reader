@@ -1,11 +1,12 @@
 """Main entry point for the manga reader application."""
 
 import sys
+
 from PySide6.QtWidgets import QApplication
 
+from manga_reader.coordinators import ReaderController
 from manga_reader.io import VolumeIngestor
 from manga_reader.ui import MainWindow, MangaCanvas
-from manga_reader.coordinators import ReaderController
 
 
 def main():

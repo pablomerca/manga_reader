@@ -1,8 +1,8 @@
 """MangaPage entity - represents a single page with OCR blocks."""
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 from pathlib import Path
+from typing import List, Optional
 
 from .ocr_block import OCRBlock
 
