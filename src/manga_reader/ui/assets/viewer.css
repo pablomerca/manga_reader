@@ -1,25 +1,30 @@
 body {
     margin: 0;
     padding: 0;
-    overflow: hidden;
     background-color: #333; /* Dark background */
+    overflow: hidden;
 }
 
-/* Flex container to center the content */
+/* Scrollable viewport so zoomed content can be panned */
 #viewport {
     width: 100vw;
     height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: block;
+    overflow: hidden; /* hide scrollbars; panning is via drag */
+    cursor: grab;
+}
+
+#viewport.grabbing {
+    cursor: grabbing;
+    user-select: none;
 }
 
 /* The wrapper that holds pages. It is scaled by JS. */
 #content-wrapper {
     position: relative;
-    transform-origin: center center;
+    transform-origin: top left;
     display: flex;
-    /* transition: transform 0.2s ease-out; Optional smooth zooming */
+    /* transition: transform 0.1s ease-out; Optional smooth zooming */
 }
 
 /* Individual page container */

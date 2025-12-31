@@ -22,6 +22,7 @@ class WebConnector(QObject):
     
     # Signal to notify Python that a block was clicked
     blockClickedSignal = Signal(int, int)  # id, ? might pass ID or metadata
+    navigationSignal = Signal(str)  # "next" | "prev"
 
     def __init__(self):
         super().__init__()
@@ -34,6 +35,11 @@ class WebConnector(QObject):
         # Ideally we map ID back to page/block. 
         # But for this refactor let's just keep the connection alive.
         pass
+
+    @Slot(str)
+    def requestNavigation(self, direction: str):
+        """Called from JS to request navigation (left/right arrows)."""
+        self.navigationSignal.emit(direction)
 
 
 class MangaCanvas(QWidget):
@@ -67,6 +73,9 @@ class MangaCanvas(QWidget):
         self.channel.registerObject("connector", self.bridge)
         self.web_view.page().setWebChannel(self.channel)
         print("DEBUG: QWebChannel setup complete. Connector registered.")
+
+        # Forward JS navigation requests to canvas signal
+        self.bridge.navigationSignal.connect(self.navigation_requested)
         
         layout.addWidget(self.web_view)
         

@@ -2,143 +2,292 @@
 
 // Global state
 let bridge = null;
-
-// Initialize WebChannel
-document.addEventListener("DOMContentLoaded", () => {
-    if (typeof qt !== 'undefined' && qt.webChannelTransport) {
-        new QWebChannel(qt.webChannelTransport, function(channel) {
-            console.log("QWebChannel connected.");
-            
-            bridge = channel.objects.connector;
-            if (!bridge) {
-                console.error("Connector object not found in WebChannel objects:", channel.objects);
-                return;
-            }
-            
-            console.log("Bridge object found:", bridge);
-            // We no longer connect to Python signals here.
-            // Python will call updateView() directly via runJavaScript.
-        });
-    } else {
-        console.error("Qt WebChannel not found! Ensure this is running inside QWebEngineView.");
-    }
-    
-    // Handle window resize
-    window.addEventListener("resize", () => {
-        if (lastData) {
-            renderPages(lastData);
-        }
-    });
-});
-
-function requestUpdate() {
-    if (bridge) {
-        // Optional: ask python for state if needed
-    }
-}
-
 let lastData = null;
+let viewportEl = null;
 
-// This function is called directly by Python
-function updateView(data) {
-    try {
-        console.log("Received data update via runJavaScript.");
-        lastData = data;
-        renderPages(data);
-    } catch (e) {
-        console.error("Failed to render pages:", e);
+// Zoom state (fit-to-window scale is recalculated on resize, userScale is driven by Ctrl+wheel)
+const ZOOM_STEP = 0.1;
+const MIN_USER_SCALE = 0.2;
+const MAX_USER_SCALE = 5.0;
+let userScale = 1.0;
+
+// Layout cache to avoid recomputing dimensions when only zoom changes
+const layoutState = {
+    totalWidth: 0,
+    maxHeight: 0,
+    fitScale: 1.0,
+};
+
+"use strict";
+
+class MangaViewer {
+    constructor() {
+        // Zoom state
+        this.ZOOM_STEP = 0.1;
+        this.MIN_USER_SCALE = 0.2;
+        this.MAX_USER_SCALE = 5.0;
+        this.userScale = 1.0;
+
+        // Layout and panning state
+        this.layoutState = { totalWidth: 0, maxHeight: 0, fitScale: 1.0 };
+        this.isPanning = false;
+        this.panStartX = 0;
+        this.panStartY = 0;
+        this.panScrollLeft = 0;
+        this.panScrollTop = 0;
+
+        // DOM refs
+        this.viewportEl = null;
+        this.wrapperEl = null;
+
+        // Channel/state
+        this.bridge = null;
+        this.lastData = null;
+
+        document.addEventListener("DOMContentLoaded", () => this.setup());
     }
-}
 
-function renderPages(data) {
-    const wrapper = document.getElementById("content-wrapper");
-    if (!wrapper) return;
-    wrapper.innerHTML = ""; // Clear current content
-    
-    const pages = data.pages;
-    const gap = data.gap || 20;
-    
-    let totalWidth = 0;
-    let maxHeight = 0;
-    
-    pages.forEach((page, index) => {
-        const pageEl = createPageElement(page);
-        wrapper.appendChild(pageEl);
-        
-        totalWidth += page.width;
-        maxHeight = Math.max(maxHeight, page.height);
-        
-        // Add gap if not last
-        if (index < pages.length - 1) {
-            pageEl.style.marginRight = gap + "px";
-            totalWidth += gap;
+    setup() {
+        this.viewportEl = document.getElementById("viewport");
+        this.wrapperEl = document.getElementById("content-wrapper");
+
+        this.makeBodyFocusable();
+        this.initChannel();
+        this.bindEvents();
+    }
+
+    makeBodyFocusable() {
+        if (document.body) {
+            document.body.setAttribute("tabindex", "0");
+            document.body.focus();
         }
-    });
-    
-    // Update CSS variables / scaling
-    const viewport = document.getElementById("viewport");
-    const vWidth = viewport.clientWidth;
-    const vHeight = viewport.clientHeight;
-    
-    // Calculate Scale
-    let scale = Math.min(vWidth / totalWidth, vHeight / maxHeight);
-    if (scale <= 0) scale = 1.0;
-    
-    // Apply layout
-    wrapper.style.width = totalWidth + "px";
-    wrapper.style.height = maxHeight + "px";
-    wrapper.style.transform = `scale(${scale})`;
+    }
+
+    initChannel() {
+        if (typeof qt !== "undefined" && qt.webChannelTransport) {
+            new QWebChannel(qt.webChannelTransport, (channel) => {
+                console.log("QWebChannel connected.");
+                this.bridge = channel.objects.connector;
+                if (!this.bridge) {
+                    console.error("Connector object not found in WebChannel objects:", channel.objects);
+                    return;
+                }
+                console.log("Bridge object found:", this.bridge);
+            });
+        } else {
+            console.error("Qt WebChannel not found! Ensure this is running inside QWebEngineView.");
+        }
+    }
+
+    bindEvents() {
+        window.addEventListener("resize", () => {
+            if (this.lastData) this.recomputeScale();
+        });
+
+        if (this.viewportEl) {
+            this.viewportEl.addEventListener("wheel", (e) => this.handleWheelZoom(e), { passive: false });
+            this.viewportEl.addEventListener("mousedown", (e) => this.handlePanStart(e));
+            this.viewportEl.addEventListener("mousemove", (e) => this.handlePanMove(e));
+            this.viewportEl.addEventListener("mouseup", () => this.handlePanEnd());
+            this.viewportEl.addEventListener("mouseleave", () => this.handlePanEnd());
+        }
+
+        const navHandler = (event) => this.handleNavigationKey(event);
+        window.addEventListener("keydown", navHandler, { passive: false });
+        document.addEventListener("keydown", navHandler, { passive: false, capture: true });
+        if (document.body) {
+            document.body.addEventListener("keydown", navHandler, { passive: false, capture: true });
+        }
+    }
+
+    // Entry point called from Python
+    updateView(data) {
+        try {
+            console.log("Received data update via runJavaScript.");
+            this.lastData = data;
+            this.userScale = 1.0;
+            this.renderPages(data);
+            this.resetViewportScroll();
+            this.recomputeScale();
+        } catch (e) {
+            console.error("Failed to render pages:", e);
+        }
+    }
+
+    renderPages(data) {
+        if (!this.wrapperEl) return;
+        this.wrapperEl.innerHTML = "";
+
+        const pages = data.pages;
+        const gap = data.gap || 20;
+
+        let totalWidth = 0;
+        let maxHeight = 0;
+
+        pages.forEach((page, index) => {
+            const pageEl = this.createPageElement(page);
+            this.wrapperEl.appendChild(pageEl);
+
+            totalWidth += page.width;
+            maxHeight = Math.max(maxHeight, page.height);
+
+            if (index < pages.length - 1) {
+                pageEl.style.marginRight = gap + "px";
+                totalWidth += gap;
+            }
+        });
+
+        this.layoutState.totalWidth = totalWidth;
+        this.layoutState.maxHeight = maxHeight;
+    }
+
+    recomputeScale() {
+        if (!this.viewportEl || !this.wrapperEl || this.layoutState.totalWidth === 0 || this.layoutState.maxHeight === 0) return;
+
+        const vWidth = this.viewportEl.clientWidth;
+        const vHeight = this.viewportEl.clientHeight;
+
+        let fit = Math.min(vWidth / this.layoutState.totalWidth, vHeight / this.layoutState.maxHeight);
+        if (!Number.isFinite(fit) || fit <= 0) fit = 1.0;
+
+        this.layoutState.fitScale = fit;
+        this.applyScale();
+    }
+
+    applyScale() {
+        if (!this.wrapperEl || !this.viewportEl) return;
+
+        this.wrapperEl.style.width = this.layoutState.totalWidth + "px";
+        this.wrapperEl.style.height = this.layoutState.maxHeight + "px";
+
+        const totalScale = this.layoutState.fitScale * this.userScale;
+        this.wrapperEl.style.transform = `scale(${totalScale})`;
+        this.wrapperEl.style.transformOrigin = "top left";
+
+        const scaledWidth = this.layoutState.totalWidth * totalScale;
+        const scaledHeight = this.layoutState.maxHeight * totalScale;
+        const hPad = Math.max((this.viewportEl.clientWidth - scaledWidth) / 2, 0);
+        const vPad = Math.max((this.viewportEl.clientHeight - scaledHeight) / 2, 0);
+
+        this.wrapperEl.style.marginLeft = `${hPad}px`;
+        this.wrapperEl.style.marginRight = `${hPad}px`;
+        this.wrapperEl.style.marginTop = `${vPad}px`;
+        this.wrapperEl.style.marginBottom = `${vPad}px`;
+
+        if (scaledWidth <= this.viewportEl.clientWidth) this.viewportEl.scrollLeft = 0;
+        if (scaledHeight <= this.viewportEl.clientHeight) this.viewportEl.scrollTop = 0;
+    }
+
+    handleWheelZoom(event) {
+        if (!event.ctrlKey && !event.metaKey) return;
+
+        event.preventDefault();
+
+        const direction = event.deltaY < 0 ? 1 : -1;
+        const factor = 1 + this.ZOOM_STEP;
+        const nextScale = direction > 0 ? this.userScale * factor : this.userScale / factor;
+        this.userScale = this.clamp(nextScale, this.MIN_USER_SCALE, this.MAX_USER_SCALE);
+
+        this.applyScale();
+    }
+
+    handlePanStart(event) {
+        if (event.button !== 0 || !this.viewportEl) return;
+        this.isPanning = true;
+        this.viewportEl.classList.add("grabbing");
+        this.panStartX = event.clientX;
+        this.panStartY = event.clientY;
+        this.panScrollLeft = this.viewportEl.scrollLeft;
+        this.panScrollTop = this.viewportEl.scrollTop;
+    }
+
+    handlePanMove(event) {
+        if (!this.isPanning || !this.viewportEl) return;
+        event.preventDefault();
+        const dx = event.clientX - this.panStartX;
+        const dy = event.clientY - this.panStartY;
+        this.viewportEl.scrollLeft = this.panScrollLeft - dx;
+        this.viewportEl.scrollTop = this.panScrollTop - dy;
+    }
+
+    handlePanEnd() {
+        if (!this.isPanning || !this.viewportEl) return;
+        this.isPanning = false;
+        this.viewportEl.classList.remove("grabbing");
+    }
+
+    handleNavigationKey(event) {
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            event.preventDefault();
+            event.stopPropagation();
+            const dir = event.key === "ArrowLeft" ? "next" : "prev"; // RTL: left=next, right=prev
+            this.sendNavigation(dir);
+        }
+    }
+
+    sendNavigation(direction) {
+        if (this.bridge && typeof this.bridge.requestNavigation === "function") {
+            this.bridge.requestNavigation(direction, () => {});
+        }
+    }
+
+    resetViewportScroll() {
+        if (!this.viewportEl) return;
+        this.viewportEl.scrollLeft = 0;
+        this.viewportEl.scrollTop = 0;
+    }
+
+    createPageElement(pageData) {
+        const container = document.createElement("div");
+        container.className = "page-container";
+        container.style.width = pageData.width + "px";
+        container.style.height = pageData.height + "px";
+
+        const img = document.createElement("img");
+        img.className = "page-image";
+        img.src = pageData.imageUrl;
+        container.appendChild(img);
+
+        if (pageData.blocks) {
+            pageData.blocks.forEach((block) => {
+                const blockEl = this.createBlockElement(block);
+                container.appendChild(blockEl);
+            });
+        }
+        return container;
+    }
+
+    createBlockElement(block) {
+        const el = document.createElement("div");
+        el.className = "ocr-block";
+        el.style.left = block.x + "px";
+        el.style.top = block.y + "px";
+        el.style.width = block.width + "px";
+        el.style.height = block.height + "px";
+
+        el.onclick = () => {
+            if (this.bridge && typeof this.bridge.blockClicked === "function") {
+                this.bridge.blockClicked(block.id, () => {});
+            }
+        };
+
+        if (block.lines) {
+            block.lines.forEach((lineText) => {
+                const lineEl = document.createElement("div");
+                lineEl.className = "ocr-line";
+                lineEl.textContent = lineText;
+                lineEl.style.fontSize = block.fontSize + "px";
+                el.appendChild(lineEl);
+            });
+        }
+        return el;
+    }
+
+    clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+    }
 }
 
-function createPageElement(pageData) {
-    const container = document.createElement("div");
-    container.className = "page-container";
-    container.style.width = pageData.width + "px";
-    container.style.height = pageData.height + "px";
-    
-    // Image
-    const img = document.createElement("img");
-    img.className = "page-image";
-    img.src = pageData.imageUrl; 
-    container.appendChild(img);
-    
-    // OCR Blocks
-    if (pageData.blocks) {
-        pageData.blocks.forEach(block => {
-            const blockEl = createBlockElement(block);
-            container.appendChild(blockEl);
-        });
-    }
-    
-    return container;
-}
-
-function createBlockElement(block) {
-    const el = document.createElement("div");
-    el.className = "ocr-block";
-    el.style.left = block.x + "px";
-    el.style.top = block.y + "px";
-    el.style.width = block.width + "px";
-    el.style.height = block.height + "px";
-    
-    // Add click listener to notify Python
-    el.onclick = (e) => {
-        // e.stopPropagation();
-        // Provide empty callback to force message ID generation, 
-        // which prevents "JSON message object is missing the id property" error
-        if (bridge) bridge.blockClicked(block.id, () => {});
-    };
-    
-    // Lines
-    if (block.lines) {
-        block.lines.forEach(lineText => {
-            const lineEl = document.createElement("div");
-            lineEl.className = "ocr-line";
-            lineEl.textContent = lineText;
-            lineEl.style.fontSize = block.fontSize + "px";
-            el.appendChild(lineEl);
-        });
-    }
-    
-    return el;
-}
+// Instantiate and expose updateView for Python
+const mangaViewer = new MangaViewer();
+window.updateView = (data) => mangaViewer.updateView(data);
