@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication
 
 from manga_reader.coordinators import ReaderController
 from manga_reader.io import VolumeIngestor
+from manga_reader.services import MorphologyService
 from manga_reader.ui import MainWindow, MangaCanvas
 
 
@@ -19,11 +20,12 @@ def main():
     app.setApplicationName("Manga Reader")
     app.setOrganizationName("MangaReader")
     
-    # 2. Initialize Infrastructure
+    # 2. Initialize Services & Infrastructure
+    morphology_service = MorphologyService()
     ingestor = VolumeIngestor()
     
-    # 3. Construct UI
-    canvas = MangaCanvas()
+    # 3. Construct UI (injecting dependencies)
+    canvas = MangaCanvas(morphology_service=morphology_service)
     main_window = MainWindow()
     main_window.set_canvas(canvas)
     

@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Optional
 
 from PySide6.QtCore import QEvent, QObject, Qt, QUrl, Signal, Slot
 from PySide6.QtWebChannel import QWebChannel
@@ -9,6 +10,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from manga_reader.core import MangaPage, OCRBlock
+from manga_reader.services import MorphologyService
 
 # Template directory
 TEMPLATES_DIR = Path(__file__).parent / "assets"
@@ -23,6 +25,8 @@ class WebConnector(QObject):
     # Signal to notify Python that a block was clicked
     blockClickedSignal = Signal(int, int)  # id, ? might pass ID or metadata
     navigationSignal = Signal(str)  # "next" | "prev"
+    # Signal to notify Python that a noun was clicked
+    nounClickedSignal = Signal(str, str, int, int)  # lemma, surface, x, y
 
     def __init__(self):
         super().__init__()
@@ -41,6 +45,12 @@ class WebConnector(QObject):
         """Called from JS to request navigation (left/right arrows)."""
         self.navigationSignal.emit(direction)
 
+    @Slot(str, str, int, int)
+    def requestNounLookup(self, lemma: str, surface: str, mouse_x: int, mouse_y: int):
+        """Called from JS when a noun span is clicked."""
+        print(f"DEBUG: Python received noun click: lemma='{lemma}', surface='{surface}', x={mouse_x}, y={mouse_y}")
+        self.nounClickedSignal.emit(lemma, surface, mouse_x, mouse_y)
+
 
 class MangaCanvas(QWidget):
     """Renders manga JPEG with vertical Japanese text overlays using QWebEngineView."""
@@ -49,9 +59,14 @@ class MangaCanvas(QWidget):
     block_clicked = Signal(int, int)  # x, y coordinates
     # Signal emitted for navigation (preventing browser scroll)
     navigation_requested = Signal(str) # "next" or "prev"
+    # Signal emitted when user clicks on a noun
+    noun_clicked = Signal(str, str, int, int)  # lemma, surface, mouse_x, mouse_y
     
-    def __init__(self):
+    def __init__(self, morphology_service: Optional[MorphologyService] = None):
         super().__init__()
+        
+        # Initialize morphology service (dependency injection; can be None if not available)
+        self.morphology_service = morphology_service or MorphologyService()
         
         # Create layout
         layout = QVBoxLayout(self)
@@ -76,6 +91,8 @@ class MangaCanvas(QWidget):
 
         # Forward JS navigation requests to canvas signal
         self.bridge.navigationSignal.connect(self.navigation_requested)
+        # Forward noun click requests to canvas signal
+        self.bridge.nounClickedSignal.connect(self.noun_clicked)
         
         layout.addWidget(self.web_view)
         
@@ -151,19 +168,38 @@ class MangaCanvas(QWidget):
         }
 
     def _serialize_page(self, page: MangaPage) -> dict:
-        """Convert single page to dict."""
+        """
+        Convert single page to dict with noun metadata.
+        
+        Each block includes a 'nouns' array with noun token information
+        for JavaScript to use for highlighting and interaction.
+        """
         blocks_data = []
         for idx, block in enumerate(page.ocr_blocks):
             font_size = self._calculate_font_size(block)
-            blocks_data.append({
-                "id": idx, # Simple ID for now
+            
+            # Extract nouns from block text for HTML wrapping
+            nouns = self._extract_block_nouns(block.full_text)
+            
+            block_dict = {
+                "id": idx,  # Simple ID for now
                 "x": block.x,
                 "y": block.y,
                 "width": block.width,
                 "height": block.height,
                 "fontSize": font_size,
-                "lines": block.text_lines
-            })
+                "lines": block.text_lines,
+                "nouns": [  # NEW: noun metadata for JavaScript highlight wrapping
+                    {
+                        "surface": token.surface,
+                        "lemma": token.lemma,
+                        "start": token.start_offset,
+                        "end": token.end_offset,
+                    }
+                    for token in nouns
+                ],
+            }
+            blocks_data.append(block_dict)
             
         return {
             "imageUrl": QUrl.fromLocalFile(str(page.image_path)).toString(),
@@ -201,6 +237,21 @@ class MangaCanvas(QWidget):
         optimal_size = min(size_by_height, size_by_width)
         
         return max(MIN_FONT_SIZE, min(int(optimal_size), MAX_FONT_SIZE))
+
+    def _extract_block_nouns(self, text: str):
+        """
+        Extract nouns from OCR block text using morphology service.
+        
+        Args:
+            text: Full text from OCR block
+            
+        Returns:
+            List of Token objects representing nouns
+        """
+        if not text or not self.morphology_service:
+            return []
+        
+        return self.morphology_service.extract_nouns(text)
 
     def clear(self):
         """Clear the canvas."""
