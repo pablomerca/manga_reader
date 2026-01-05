@@ -79,3 +79,17 @@ body {
 .ocr-block:hover .ocr-line {
     opacity: 1;
 }
+
+/* Noun element styling for interactive lookup */
+.noun {
+    cursor: pointer;
+    transition: background-color 0.15s ease-out, box-shadow 0.15s ease-out;
+    padding: 2px 4px;
+    border-radius: 2px;
+    background-color: transparent;
+}
+
+.noun:hover {
+    background-color: #ffeb3b;
+    box-shadow: 0 0 4px rgba(255, 235, 59, 0.7);
+}

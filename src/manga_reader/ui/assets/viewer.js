@@ -90,6 +90,9 @@ class MangaViewer {
             this.viewportEl.addEventListener("mousemove", (e) => this.handlePanMove(e));
             this.viewportEl.addEventListener("mouseup", () => this.handlePanEnd());
             this.viewportEl.addEventListener("mouseleave", () => this.handlePanEnd());
+            
+            // NEW: Delegate click handler for noun spans
+            this.viewportEl.addEventListener("click", (e) => this.handleNounClick(e));
         }
 
         const navHandler = (event) => this.handleNavigationKey(event);
@@ -97,6 +100,32 @@ class MangaViewer {
         document.addEventListener("keydown", navHandler, { passive: false, capture: true });
         if (document.body) {
             document.body.addEventListener("keydown", navHandler, { passive: false, capture: true });
+        }
+    }
+
+    /**
+     * Handle clicks on noun spans to trigger dictionary lookup.
+     * Only handles clicks on .noun spans, not on regular OCR blocks.
+     */
+    handleNounClick(event) {
+        // Check if the click target is a noun span
+        if (!event.target.classList.contains("noun")) {
+            return;
+        }
+
+        // Prevent default click handling for nouns
+        event.stopPropagation();
+
+        const nounSpan = event.target;
+        const lemma = nounSpan.dataset.lemma;
+        const surface = nounSpan.textContent;
+        const rect = nounSpan.getBoundingClientRect();
+
+        console.log(`[JS] Noun clicked: lemma="${lemma}", surface="${surface}", x=${rect.x}, y=${rect.y}`);
+
+        // Emit signal to Python via QWebChannel
+        if (this.bridge && typeof this.bridge.requestNounLookup === "function") {
+            this.bridge.requestNounLookup(lemma, surface, rect.x, rect.y, () => {});
         }
     }
 
@@ -193,6 +222,32 @@ class MangaViewer {
 
     handlePanStart(event) {
         if (event.button !== 0 || !this.viewportEl) return;
+
+        // Check if clicked element is within an OCR line (includes noun spans, text content, etc.)
+        let target = event.target;
+        let isInOCRLine = false;
+        
+        // Traverse up the DOM tree to see if we're inside an ocr-line
+        while (target && target !== this.viewportEl) {
+            if (target.classList && target.classList.contains("ocr-line")) {
+                isInOCRLine = true;
+                break;
+            }
+            target = target.parentElement;
+        }
+        
+        // Don't pan if clicking within an OCR line (text selection area)
+        if (isInOCRLine) {
+            return;
+        }
+
+        // Only pan if content is actually scrollable (zoomed in beyond viewport)
+        const canScrollH = this.viewportEl.scrollWidth > this.viewportEl.clientWidth;
+        const canScrollV = this.viewportEl.scrollHeight > this.viewportEl.clientHeight;
+        if (!canScrollH && !canScrollV) {
+            return; // Content fits on screen, don't pan
+        }
+
         this.isPanning = true;
         this.viewportEl.classList.add("grabbing");
         this.panStartX = event.clientX;
@@ -203,6 +258,7 @@ class MangaViewer {
 
     handlePanMove(event) {
         if (!this.isPanning || !this.viewportEl) return;
+        // Only prevent default if actually panning (not selecting text)
         event.preventDefault();
         const dx = event.clientX - this.panStartX;
         const dy = event.clientY - this.panStartY;
@@ -275,12 +331,104 @@ class MangaViewer {
             block.lines.forEach((lineText) => {
                 const lineEl = document.createElement("div");
                 lineEl.className = "ocr-line";
-                lineEl.textContent = lineText;
+                
+                // Wrap nouns in spans if noun data is available
+                if (block.nouns && block.nouns.length > 0) {
+                    const wrappedHTML = this.wrapNounsInLine(lineText, block.nouns);
+                    lineEl.innerHTML = wrappedHTML;
+                } else {
+                    lineEl.textContent = lineText;
+                }
+                
                 lineEl.style.fontSize = block.fontSize + "px";
                 el.appendChild(lineEl);
             });
         }
         return el;
+    }
+
+    /**
+     * Wraps noun tokens in HTML spans for highlighting and interaction.
+     * Processes text character-by-character, identifying noun boundaries without index shifting.
+     */
+    wrapNounsInLine(text, nouns) {
+        if (!nouns || nouns.length === 0) {
+            return this.escapeHtml(text);
+        }
+
+        // Create a map of offset -> noun for quick lookup
+        const nounsByStart = {};
+        const nounsByEnd = {};
+        
+        for (const noun of nouns) {
+            if (!nounsByStart[noun.start]) {
+                nounsByStart[noun.start] = [];
+            }
+            nounsByStart[noun.start].push(noun);
+            
+            if (!nounsByEnd[noun.end]) {
+                nounsByEnd[noun.end] = [];
+            }
+            nounsByEnd[noun.end].push(noun);
+        }
+
+        let result = "";
+        let currentNounStack = []; // Track nouns we're currently inside
+
+        for (let i = 0; i < text.length; i++) {
+            // Close any nouns that end at this position
+            currentNounStack = currentNounStack.filter(noun => noun.end > i);
+            if (nounsByEnd[i]) {
+                // A noun ended at position i; we've already added closing tags
+            }
+
+            // Open any nouns that start at this position
+            if (nounsByStart[i]) {
+                for (const noun of nounsByStart[i]) {
+                    const escapedLemma = this.escapeAttr(noun.lemma);
+                    result += `<span class="noun" data-lemma="${escapedLemma}">`;
+                    currentNounStack.push(noun);
+                }
+            }
+
+            // Add the character
+            result += this.escapeHtml(text[i]);
+
+            // Close nouns that end after this position
+            if (nounsByEnd[i + 1]) {
+                for (const noun of nounsByEnd[i + 1]) {
+                    result += "</span>";
+                }
+            }
+        }
+
+        // Close any remaining open spans
+        for (let i = 0; i < currentNounStack.length; i++) {
+            result += "</span>";
+        }
+
+        return result;
+    }
+
+    /**
+     * Escapes HTML special characters to prevent XSS.
+     */
+    escapeHtml(text) {
+        const map = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;",
+        };
+        return text.replace(/[&<>"']/g, (m) => map[m]);
+    }
+
+    /**
+     * Escapes HTML attribute values.
+     */
+    escapeAttr(text) {
+        return text.replace(/"/g, "&quot;");
     }
 
     clamp(value, min, max) {
