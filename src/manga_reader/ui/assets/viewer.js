@@ -3,6 +3,9 @@
 import { TextFormatter } from './modules/TextFormatter.js';
 import { ZoomController } from './modules/ZoomController.js';
 import { PanController } from './modules/PanController.js';
+import { LayoutManager } from './modules/LayoutManager.js';
+import { PageRenderer } from './modules/PageRenderer.js';
+import { PopupManager } from './modules/PopupManager.js';
 
 class MangaViewer {
     constructor() {
@@ -12,14 +15,13 @@ class MangaViewer {
         // Controllers (initialized in setup after DOM ready)
         this.zoomController = new ZoomController(0.2, 5.0, 0.1);
         this.panController = null; // Needs viewport element
-
-        // Layout and panning state
-        this.layoutState = { totalWidth: 0, maxHeight: 0, fitScale: 1.0 };
+        this.layoutManager = null; // Needs viewport and wrapper elements
+        this.pageRenderer = null; // Needs textFormatter and bridge
+        this.popupManager = null; // Needs viewport element
 
         // DOM refs
         this.viewportEl = null;
         this.wrapperEl = null;
-        this.popupEl = null;
 
         // Channel/state
         this.bridge = null;
@@ -32,8 +34,11 @@ class MangaViewer {
         this.viewportEl = document.getElementById("viewport");
         this.wrapperEl = document.getElementById("content-wrapper");
 
-        // Initialize PanController with viewport element
+        // Initialize modules with DOM elements
         this.panController = new PanController(this.viewportEl);
+        this.layoutManager = new LayoutManager(this.viewportEl, this.wrapperEl);
+        this.pageRenderer = new PageRenderer(this.textFormatter);
+        this.popupManager = new PopupManager(this.viewportEl, this.textFormatter);
 
         this.makeBodyFocusable();
         this.initChannel();
@@ -57,6 +62,11 @@ class MangaViewer {
                     return;
                 }
                 console.log("Bridge object found:", this.bridge);
+                
+                // Set bridge on pageRenderer for block clicks
+                if (this.pageRenderer) {
+                    this.pageRenderer.setBridge(this.bridge);
+                }
             });
         } else {
             console.error("Qt WebChannel not found! Ensure this is running inside QWebEngineView.");
@@ -121,9 +131,9 @@ class MangaViewer {
             console.log("Received data update via runJavaScript.");
             this.lastData = data;
             this.zoomController.setScale(1.0);
-            this.hideWordPopup();
+            this.popupManager.hide();
             this.renderPages(data);
-            this.resetViewportScroll();
+            this.layoutManager.resetScroll();
             this.recomputeScale();
         } catch (e) {
             console.error("Failed to render pages:", e);
@@ -141,7 +151,7 @@ class MangaViewer {
         let maxHeight = 0;
 
         pages.forEach((page, index) => {
-            const pageEl = this.createPageElement(page);
+            const pageEl = this.pageRenderer.createPageElement(page);
             this.wrapperEl.appendChild(pageEl);
 
             totalWidth += page.width;
@@ -153,45 +163,16 @@ class MangaViewer {
             }
         });
 
-        this.layoutState.totalWidth = totalWidth;
-        this.layoutState.maxHeight = maxHeight;
+        this.layoutManager.setDimensions(totalWidth, maxHeight);
     }
 
     recomputeScale() {
-        if (!this.viewportEl || !this.wrapperEl || this.layoutState.totalWidth === 0 || this.layoutState.maxHeight === 0) return;
-
-        const vWidth = this.viewportEl.clientWidth;
-        const vHeight = this.viewportEl.clientHeight;
-
-        let fit = Math.min(vWidth / this.layoutState.totalWidth, vHeight / this.layoutState.maxHeight);
-        if (!Number.isFinite(fit) || fit <= 0) fit = 1.0;
-
-        this.layoutState.fitScale = fit;
+        this.layoutManager.computeFitScale();
         this.applyScale();
     }
 
     applyScale() {
-        if (!this.wrapperEl || !this.viewportEl) return;
-
-        this.wrapperEl.style.width = this.layoutState.totalWidth + "px";
-        this.wrapperEl.style.height = this.layoutState.maxHeight + "px";
-
-        const totalScale = this.layoutState.fitScale * this.zoomController.getScale();
-        this.wrapperEl.style.transform = `scale(${totalScale})`;
-        this.wrapperEl.style.transformOrigin = "top left";
-
-        const scaledWidth = this.layoutState.totalWidth * totalScale;
-        const scaledHeight = this.layoutState.maxHeight * totalScale;
-        const hPad = Math.max((this.viewportEl.clientWidth - scaledWidth) / 2, 0);
-        const vPad = Math.max((this.viewportEl.clientHeight - scaledHeight) / 2, 0);
-
-        this.wrapperEl.style.marginLeft = `${hPad}px`;
-        this.wrapperEl.style.marginRight = `${hPad}px`;
-        this.wrapperEl.style.marginTop = `${vPad}px`;
-        this.wrapperEl.style.marginBottom = `${vPad}px`;
-
-        if (scaledWidth <= this.viewportEl.clientWidth) this.viewportEl.scrollLeft = 0;
-        if (scaledHeight <= this.viewportEl.clientHeight) this.viewportEl.scrollTop = 0;
+        this.layoutManager.applyLayout(this.zoomController.getScale());
     }
 
     handleWheelZoom(event) {
@@ -209,7 +190,7 @@ class MangaViewer {
         if (event.button !== 0 || !this.viewportEl) return;
 
         // Don't pan if clicking inside the dictionary popup
-        if (this.popupEl && this.popupEl.contains(event.target)) {
+        if (this.popupManager.contains(event.target)) {
             return;
         }
 
@@ -248,7 +229,7 @@ class MangaViewer {
 
     handleNavigationKey(event) {
         if (event.key === "Escape") {
-            this.hideWordPopup();
+            this.popupManager.hide();
             return;
         }
 
@@ -261,10 +242,10 @@ class MangaViewer {
     }
 
     handleGlobalClick(event) {
-        if (!this.popupEl) return;
+        if (!this.popupManager.isVisible()) return;
         if (event.target.classList && event.target.classList.contains("word")) return;
-        if (this.popupEl.contains(event.target)) return;
-        this.hideWordPopup();
+        if (this.popupManager.contains(event.target)) return;
+        this.popupManager.hide();
     }
 
     sendNavigation(direction) {
@@ -273,153 +254,17 @@ class MangaViewer {
         }
     }
 
-    resetViewportScroll() {
-        if (!this.viewportEl) return;
-        this.viewportEl.scrollLeft = 0;
-        this.viewportEl.scrollTop = 0;
-    }
-
-    createPageElement(pageData) {
-        const container = document.createElement("div");
-        container.className = "page-container";
-        container.style.width = pageData.width + "px";
-        container.style.height = pageData.height + "px";
-
-        const img = document.createElement("img");
-        img.className = "page-image";
-        img.src = pageData.imageUrl;
-        container.appendChild(img);
-
-        if (pageData.blocks) {
-            pageData.blocks.forEach((block) => {
-                const blockEl = this.createBlockElement(block);
-                container.appendChild(blockEl);
-            });
-        }
-        return container;
-    }
-
-    createBlockElement(block) {
-        const el = document.createElement("div");
-        el.className = "ocr-block";
-        el.style.left = block.x + "px";
-        el.style.top = block.y + "px";
-        el.style.width = block.width + "px";
-        el.style.height = block.height + "px";
-
-        el.onclick = () => {
-            if (this.bridge && typeof this.bridge.blockClicked === "function") {
-                this.bridge.blockClicked(block.id, () => {});
-            }
-        };
-
-        if (block.lines) {
-            // Process each line with adjusted noun offsets
-            let currentOffset = 0;
-            
-            block.lines.forEach((lineText) => {
-                const lineEl = document.createElement("div");
-                lineEl.className = "ocr-line";
-                
-                // Filter words that belong to this line
-                const lineStart = currentOffset;
-                const lineEnd = currentOffset + lineText.length;
-                const lineWords = block.words ? block.words.filter(word => {
-                    return word.start < lineEnd && word.end > lineStart;
-                }).map(word => ({
-                    // Adjust offsets to be relative to this line
-                    surface: word.surface,
-                    lemma: word.lemma,
-                    start: Math.max(0, word.start - lineStart),
-                    end: Math.min(lineText.length, word.end - lineStart)
-                })) : [];
-                
-                // Wrap words in this line
-                if (lineWords.length > 0) {
-                    lineEl.innerHTML = this.textFormatter.wrapWordsInText(lineText, lineWords);
-                } else {
-                    lineEl.textContent = lineText;
-                }
-                
-                lineEl.style.fontSize = block.fontSize + "px";
-                el.appendChild(lineEl);
-                
-                currentOffset = lineEnd;
-            });
-        }
-        return el;
-    }
-
     clamp(value, min, max) {
         return Math.min(Math.max(value, min), max);
     }
 
+    // Python interface methods (delegates to popupManager)
     showWordPopup(payload) {
-        if (!payload || !this.viewportEl) return;
-
-        if (this.popupEl) {
-            this.popupEl.remove();
-        }
-
-        const popup = document.createElement("div");
-        popup.className = "dictionary-popup";
-
-        const safeSurface = this.textFormatter.escapeHtml(payload.surface || "");
-        const safeReading = this.textFormatter.escapeHtml(payload.reading || "");
-        const senses = Array.isArray(payload.senses) ? payload.senses : [];
-        const notFound = Boolean(payload.notFound);
-
-        const header = `<div class="dict-header"><div class="dict-surface">${safeSurface}</div><div class="dict-reading">${safeReading}</div></div>`;
-
-        let sensesHtml = "";
-        if (!notFound && senses.length > 0) {
-            sensesHtml = senses
-                .map((sense, idx) => {
-                    const glosses = Array.isArray(sense.glosses) ? sense.glosses.map((g) => this.textFormatter.escapeHtml(g)).join("; ") : "";
-                    const pos = Array.isArray(sense.pos) ? sense.pos.filter(Boolean).join(", ") : "";
-                    const posPart = pos ? `<span class="dict-pos">${this.textFormatter.escapeHtml(pos)}</span>` : "";
-                    return `<div class="dict-sense"><div class="dict-sense-title">${idx + 1}${posPart ? " · " + posPart : ""}</div><div class="dict-gloss">${glosses}</div></div>`;
-                })
-                .join("");
-        } else {
-            sensesHtml = `<div class="dict-empty">No definition found.</div>`;
-        }
-
-        popup.innerHTML = `${header}<div class="dict-body">${sensesHtml}</div>`;
-
-        const popupWidth = 360;
-        const popupHeight = 240;
-        const anchorX = payload.mouseX || 0;
-        const anchorY = payload.mouseY || 0;
-        const viewportRect = this.viewportEl.getBoundingClientRect();
-        const offset = 12;
-
-        let left = anchorX + offset;
-        if (left + popupWidth > viewportRect.right) {
-            left = anchorX - popupWidth - offset;
-        }
-        left = this.clamp(left, viewportRect.left + 8, viewportRect.right - popupWidth - 8);
-
-        let top = anchorY + offset;
-        if (top + popupHeight > viewportRect.bottom) {
-            top = anchorY - popupHeight - offset;
-        }
-        top = this.clamp(top, viewportRect.top + 8, viewportRect.bottom - popupHeight - 8);
-
-        popup.style.width = `${popupWidth}px`;
-        popup.style.maxHeight = `${popupHeight}px`;
-        popup.style.left = `${left}px`;
-        popup.style.top = `${top}px`;
-        popup.style.position = "fixed";
-
-        this.viewportEl.appendChild(popup);
-        this.popupEl = popup;
+        this.popupManager.show(payload);
     }
 
     hideWordPopup() {
-        if (!this.popupEl) return;
-        this.popupEl.remove();
-        this.popupEl = null;
+        this.popupManager.hide();
     }
 }
 

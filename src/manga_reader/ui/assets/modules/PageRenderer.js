@@ -1,0 +1,105 @@
+/**
+ * PageRenderer Module
+ * 
+ * Creates DOM elements for pages, OCR blocks, and text lines.
+ * Depends on TextFormatter for word wrapping.
+ */
+export class PageRenderer {
+    constructor(textFormatter, bridge = null) {
+        this.textFormatter = textFormatter;
+        this.bridge = bridge;
+    }
+
+    /**
+     * Set the QWebChannel bridge for block click events.
+     * 
+     * @param {Object} bridge - QWebChannel bridge object
+     */
+    setBridge(bridge) {
+        this.bridge = bridge;
+    }
+
+    /**
+     * Create a page container element with image and OCR blocks.
+     * 
+     * @param {Object} pageData - Page data with width, height, imageUrl, blocks
+     * @returns {HTMLElement} Page container element
+     */
+    createPageElement(pageData) {
+        const container = document.createElement("div");
+        container.className = "page-container";
+        container.style.width = pageData.width + "px";
+        container.style.height = pageData.height + "px";
+
+        const img = document.createElement("img");
+        img.className = "page-image";
+        img.src = pageData.imageUrl;
+        container.appendChild(img);
+
+        if (pageData.blocks) {
+            pageData.blocks.forEach((block) => {
+                const blockEl = this.createBlockElement(block);
+                container.appendChild(blockEl);
+            });
+        }
+        return container;
+    }
+
+    /**
+     * Create an OCR block element with text lines.
+     * 
+     * @param {Object} block - Block data with position, dimensions, lines, words
+     * @returns {HTMLElement} Block element
+     */
+    createBlockElement(block) {
+        const el = document.createElement("div");
+        el.className = "ocr-block";
+        el.style.left = block.x + "px";
+        el.style.top = block.y + "px";
+        el.style.width = block.width + "px";
+        el.style.height = block.height + "px";
+
+        // Attach click handler if bridge is available
+        el.onclick = () => {
+            if (this.bridge && typeof this.bridge.blockClicked === "function") {
+                this.bridge.blockClicked(block.id, () => {});
+            }
+        };
+
+        if (block.lines) {
+            // Process each line with adjusted word offsets
+            let currentOffset = 0;
+            
+            block.lines.forEach((lineText) => {
+                const lineEl = document.createElement("div");
+                lineEl.className = "ocr-line";
+                
+                // Filter words that belong to this line
+                const lineStart = currentOffset;
+                const lineEnd = currentOffset + lineText.length;
+                const lineWords = block.words ? block.words.filter(word => {
+                    return word.start < lineEnd && word.end > lineStart;
+                }).map(word => ({
+                    // Adjust offsets to be relative to this line
+                    surface: word.surface,
+                    lemma: word.lemma,
+                    start: Math.max(0, word.start - lineStart),
+                    end: Math.min(lineText.length, word.end - lineStart)
+                })) : [];
+                
+                // Wrap words in this line
+                if (lineWords.length > 0) {
+                    lineEl.innerHTML = this.textFormatter.wrapWordsInText(lineText, lineWords);
+                } else {
+                    lineEl.textContent = lineText;
+                }
+                
+                lineEl.style.fontSize = block.fontSize + "px";
+                el.appendChild(lineEl);
+                
+                currentOffset = lineEnd;
+            });
+        }
+        return el;
+    }
+}
