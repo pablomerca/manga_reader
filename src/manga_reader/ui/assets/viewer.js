@@ -1,25 +1,20 @@
 "use strict";
 
 import { TextFormatter } from './modules/TextFormatter.js';
+import { ZoomController } from './modules/ZoomController.js';
+import { PanController } from './modules/PanController.js';
 
 class MangaViewer {
     constructor() {
         // Text utilities
         this.textFormatter = new TextFormatter();
         
-        // Zoom state
-        this.ZOOM_STEP = 0.1;
-        this.MIN_USER_SCALE = 0.2;
-        this.MAX_USER_SCALE = 5.0;
-        this.userScale = 1.0;
+        // Controllers (initialized in setup after DOM ready)
+        this.zoomController = new ZoomController(0.2, 5.0, 0.1);
+        this.panController = null; // Needs viewport element
 
         // Layout and panning state
         this.layoutState = { totalWidth: 0, maxHeight: 0, fitScale: 1.0 };
-        this.isPanning = false;
-        this.panStartX = 0;
-        this.panStartY = 0;
-        this.panScrollLeft = 0;
-        this.panScrollTop = 0;
 
         // DOM refs
         this.viewportEl = null;
@@ -36,6 +31,9 @@ class MangaViewer {
     setup() {
         this.viewportEl = document.getElementById("viewport");
         this.wrapperEl = document.getElementById("content-wrapper");
+
+        // Initialize PanController with viewport element
+        this.panController = new PanController(this.viewportEl);
 
         this.makeBodyFocusable();
         this.initChannel();
@@ -122,7 +120,7 @@ class MangaViewer {
         try {
             console.log("Received data update via runJavaScript.");
             this.lastData = data;
-            this.userScale = 1.0;
+            this.zoomController.setScale(1.0);
             this.hideWordPopup();
             this.renderPages(data);
             this.resetViewportScroll();
@@ -178,7 +176,7 @@ class MangaViewer {
         this.wrapperEl.style.width = this.layoutState.totalWidth + "px";
         this.wrapperEl.style.height = this.layoutState.maxHeight + "px";
 
-        const totalScale = this.layoutState.fitScale * this.userScale;
+        const totalScale = this.layoutState.fitScale * this.zoomController.getScale();
         this.wrapperEl.style.transform = `scale(${totalScale})`;
         this.wrapperEl.style.transformOrigin = "top left";
 
@@ -202,9 +200,7 @@ class MangaViewer {
         event.preventDefault();
 
         const direction = event.deltaY < 0 ? 1 : -1;
-        const factor = 1 + this.ZOOM_STEP;
-        const nextScale = direction > 0 ? this.userScale * factor : this.userScale / factor;
-        this.userScale = this.clamp(nextScale, this.MIN_USER_SCALE, this.MAX_USER_SCALE);
+        this.zoomController.zoom(direction);
 
         this.applyScale();
     }
@@ -235,35 +231,19 @@ class MangaViewer {
             return;
         }
 
-        // Only pan if content is actually scrollable (zoomed in beyond viewport)
-        const canScrollH = this.viewportEl.scrollWidth > this.viewportEl.clientWidth;
-        const canScrollV = this.viewportEl.scrollHeight > this.viewportEl.clientHeight;
-        if (!canScrollH && !canScrollV) {
-            return; // Content fits on screen, don't pan
-        }
-
-        this.isPanning = true;
-        this.viewportEl.classList.add("grabbing");
-        this.panStartX = event.clientX;
-        this.panStartY = event.clientY;
-        this.panScrollLeft = this.viewportEl.scrollLeft;
-        this.panScrollTop = this.viewportEl.scrollTop;
+        // Delegate to pan controller
+        this.panController.startPan(event);
     }
 
     handlePanMove(event) {
-        if (!this.isPanning || !this.viewportEl) return;
-        // Only prevent default if actually panning (not selecting text)
-        event.preventDefault();
-        const dx = event.clientX - this.panStartX;
-        const dy = event.clientY - this.panStartY;
-        this.viewportEl.scrollLeft = this.panScrollLeft - dx;
-        this.viewportEl.scrollTop = this.panScrollTop - dy;
+        if (this.panController.movePan(event)) {
+            // Only prevent default if actually panning (not selecting text)
+            event.preventDefault();
+        }
     }
 
     handlePanEnd() {
-        if (!this.isPanning || !this.viewportEl) return;
-        this.isPanning = false;
-        this.viewportEl.classList.remove("grabbing");
+        this.panController.endPan();
     }
 
     handleNavigationKey(event) {
