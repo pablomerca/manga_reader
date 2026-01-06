@@ -328,20 +328,37 @@ class MangaViewer {
         };
 
         if (block.lines) {
+            // Process each line with adjusted noun offsets
+            let currentOffset = 0;
+            
             block.lines.forEach((lineText) => {
                 const lineEl = document.createElement("div");
                 lineEl.className = "ocr-line";
                 
-                // Wrap nouns in spans if noun data is available
-                if (block.nouns && block.nouns.length > 0) {
-                    const wrappedHTML = this.wrapNounsInLine(lineText, block.nouns);
-                    lineEl.innerHTML = wrappedHTML;
+                // Filter nouns that belong to this line
+                const lineStart = currentOffset;
+                const lineEnd = currentOffset + lineText.length;
+                const lineNouns = block.nouns ? block.nouns.filter(noun => {
+                    return noun.start < lineEnd && noun.end > lineStart;
+                }).map(noun => ({
+                    // Adjust offsets to be relative to this line
+                    surface: noun.surface,
+                    lemma: noun.lemma,
+                    start: Math.max(0, noun.start - lineStart),
+                    end: Math.min(lineText.length, noun.end - lineStart)
+                })) : [];
+                
+                // Wrap nouns in this line
+                if (lineNouns.length > 0) {
+                    lineEl.innerHTML = this.wrapNounsInText(lineText, lineNouns);
                 } else {
                     lineEl.textContent = lineText;
                 }
                 
                 lineEl.style.fontSize = block.fontSize + "px";
                 el.appendChild(lineEl);
+                
+                currentOffset = lineEnd;
             });
         }
         return el;
@@ -349,62 +366,36 @@ class MangaViewer {
 
     /**
      * Wraps noun tokens in HTML spans for highlighting and interaction.
-     * Processes text character-by-character, identifying noun boundaries without index shifting.
+     * Works on the full block text with correct offsets.
      */
-    wrapNounsInLine(text, nouns) {
+    wrapNounsInText(text, nouns) {
         if (!nouns || nouns.length === 0) {
             return this.escapeHtml(text);
         }
 
-        // Create a map of offset -> noun for quick lookup
-        const nounsByStart = {};
-        const nounsByEnd = {};
-        
-        for (const noun of nouns) {
-            if (!nounsByStart[noun.start]) {
-                nounsByStart[noun.start] = [];
-            }
-            nounsByStart[noun.start].push(noun);
-            
-            if (!nounsByEnd[noun.end]) {
-                nounsByEnd[noun.end] = [];
-            }
-            nounsByEnd[noun.end].push(noun);
-        }
+        // Sort nouns by start offset
+        const sortedNouns = [...nouns].sort((a, b) => a.start - b.start);
 
         let result = "";
-        let currentNounStack = []; // Track nouns we're currently inside
+        let lastIndex = 0;
 
-        for (let i = 0; i < text.length; i++) {
-            // Close any nouns that end at this position
-            currentNounStack = currentNounStack.filter(noun => noun.end > i);
-            if (nounsByEnd[i]) {
-                // A noun ended at position i; we've already added closing tags
+        for (const noun of sortedNouns) {
+            // Add text before the noun
+            if (noun.start > lastIndex) {
+                result += this.escapeHtml(text.substring(lastIndex, noun.start));
             }
 
-            // Open any nouns that start at this position
-            if (nounsByStart[i]) {
-                for (const noun of nounsByStart[i]) {
-                    const escapedLemma = this.escapeAttr(noun.lemma);
-                    result += `<span class="noun" data-lemma="${escapedLemma}">`;
-                    currentNounStack.push(noun);
-                }
-            }
+            // Add the noun with span
+            const nounText = text.substring(noun.start, noun.end);
+            const escapedLemma = this.escapeAttr(noun.lemma);
+            result += `<span class="noun" data-lemma="${escapedLemma}">${this.escapeHtml(nounText)}</span>`;
 
-            // Add the character
-            result += this.escapeHtml(text[i]);
-
-            // Close nouns that end after this position
-            if (nounsByEnd[i + 1]) {
-                for (const noun of nounsByEnd[i + 1]) {
-                    result += "</span>";
-                }
-            }
+            lastIndex = noun.end;
         }
 
-        // Close any remaining open spans
-        for (let i = 0; i < currentNounStack.length; i++) {
-            result += "</span>";
+        // Add remaining text
+        if (lastIndex < text.length) {
+            result += this.escapeHtml(text.substring(lastIndex));
         }
 
         return result;

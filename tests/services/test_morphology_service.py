@@ -77,10 +77,10 @@ class TestExtractNouns:
         text = "田中さんは走った。"
         nouns : List[Token] = morphology_service.extract_nouns(text)
 
-        # All results should be nouns (including names and place names)
+        # All results should be nouns (including names, place names, and pronouns)
         assert all(
-            noun.pos in ("NOUN", "NAME", "PLACE_NAME") for noun in nouns
-        ), "All results should be nouns or names (POS in ['NOUN', 'NAME', 'PLACE_NAME'])"
+            noun.pos in ("NOUN", "NAME", "PLACE_NAME", "PRONOUN") for noun in nouns
+        ), "All results should be nouns, names, or pronouns (POS in ['NOUN', 'NAME', 'PLACE_NAME', 'PRONOUN'])"
 
     def test_extract_nouns_common_noun(self, morphology_service):
         """Test extraction of common nouns."""
@@ -135,6 +135,38 @@ class TestExtractNouns:
         noun_surfaces = [n.surface for n in nouns]
         assert "猫" in noun_surfaces, "Should find 猫"
         assert "犬" in noun_surfaces, "Should find 犬"
+
+    def test_extract_nouns_with_punctuation_and_mixed_script(self, morphology_service):
+        """Test extraction from sentence with punctuation and hiragana/kanji mix."""
+        text = "物体を映像でかくにん確認！！"
+        nouns = morphology_service.extract_nouns(text)
+
+        # Expected nouns: 物体, 映像, かくにん, 確認
+        expected_nouns = ["物体", "映像", "かくにん", "確認"]
+        extracted_surfaces = [n.surface for n in nouns]
+
+        for expected in expected_nouns:
+            assert expected in extracted_surfaces, (
+                f"Should find '{expected}' as a noun. Found: {extracted_surfaces}"
+            )
+
+    def test_extract_nouns_with_spaces_and_compound_subjects(self, morphology_service):
+        """Test extraction from sentence with spaces and plural subjects.
+        
+        Note: 僕ら gets split into 僕 (noun) + ら (suffix), so we expect only 僕.
+        """
+        text = "さっき僕らを 助けてくれた ロボット！？"
+        nouns = morphology_service.extract_nouns(text)
+
+        # Expected nouns: さっき, 僕, ロボット
+        # (僕ら splits into 僕 + ら where ら is a suffix, not a noun)
+        expected_nouns = ["さっき", "僕", "ロボット"]
+        extracted_surfaces = [n.surface for n in nouns]
+
+        for expected in expected_nouns:
+            assert expected in extracted_surfaces, (
+                f"Should find '{expected}' as a noun. Found: {extracted_surfaces}"
+            )
 
 
 class TestTokenProperties:

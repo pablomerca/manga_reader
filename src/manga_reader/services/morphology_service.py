@@ -96,8 +96,8 @@ class MorphologyService:
         """
         Extract noun tokens from Japanese text.
 
-        Includes all noun types (common nouns, proper nouns, place names, etc.).
-        Nouns are identified by POS in NOUN, NAME, or PLACE_NAME.
+        Includes all noun types (common nouns, proper nouns, place names, pronouns).
+        Nouns are identified by POS in NOUN, NAME, PLACE_NAME, or PRONOUN.
 
         Args:
             text: Raw Japanese text
@@ -107,11 +107,11 @@ class MorphologyService:
         """
         all_tokens = self.tokenize(text)
 
-        # Filter to nouns: POS is "NOUN", "NAME", or "PLACE_NAME"
+        # Filter to nouns: POS is "NOUN", "NAME", "PLACE_NAME", or "PRONOUN"
         nouns = [
             token
             for token in all_tokens
-            if token.pos in ("NOUN", "NAME", "PLACE_NAME")
+            if token.pos in ("NOUN", "NAME", "PLACE_NAME", "PRONOUN")
         ]
 
         return nouns
