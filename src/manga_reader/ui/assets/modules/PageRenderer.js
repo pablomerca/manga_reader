@@ -77,15 +77,10 @@ export class PageRenderer {
                 // Filter words that belong to this line
                 const lineStart = currentOffset;
                 const lineEnd = currentOffset + lineText.length;
-                const lineWords = block.words ? block.words.filter(word => {
-                    return word.start < lineEnd && word.end > lineStart;
-                }).map(word => ({
-                    // Adjust offsets to be relative to this line
-                    surface: word.surface,
-                    lemma: word.lemma,
-                    start: Math.max(0, word.start - lineStart),
-                    end: Math.min(lineText.length, word.end - lineStart)
-                })) : [];
+
+                const lineWords = (block.words || [])
+                    .filter(this.isWordInLineRange(lineEnd, lineStart))
+                    .map(this.transformWordOffsets(lineStart, lineText));
                 
                 // Wrap words in this line
                 if (lineWords.length > 0) {
@@ -101,5 +96,21 @@ export class PageRenderer {
             });
         }
         return el;
+    }
+
+    transformWordOffsets(lineStart, lineText) {
+        return word => ({
+            // Adjust offsets to be relative to this line
+            surface: word.surface,
+            lemma: word.lemma,
+            start: Math.max(0, word.start - lineStart),
+            end: Math.min(lineText.length, word.end - lineStart)
+        });
+    }
+
+    isWordInLineRange(lineEnd, lineStart) {
+        return word => {
+            return word.start < lineEnd && word.end > lineStart;
+        };
     }
 }
