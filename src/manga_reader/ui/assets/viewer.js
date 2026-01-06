@@ -6,6 +6,8 @@ import { PanController } from './modules/PanController.js';
 import { LayoutManager } from './modules/LayoutManager.js';
 import { PageRenderer } from './modules/PageRenderer.js';
 import { PopupManager } from './modules/PopupManager.js';
+import { ChannelBridge } from './modules/ChannelBridge.js';
+import { EventRouter } from './modules/EventRouter.js';
 
 class MangaViewer {
     constructor() {
@@ -18,13 +20,14 @@ class MangaViewer {
         this.layoutManager = null; // Needs viewport and wrapper elements
         this.pageRenderer = null; // Needs textFormatter and bridge
         this.popupManager = null; // Needs viewport element
+        this.channelBridge = new ChannelBridge();
+        this.eventRouter = null; // Needs viewport element and callbacks
 
         // DOM refs
         this.viewportEl = null;
         this.wrapperEl = null;
 
         // Channel/state
-        this.bridge = null;
         this.lastData = null;
 
         document.addEventListener("DOMContentLoaded", () => this.setup());
@@ -40,9 +43,21 @@ class MangaViewer {
         this.pageRenderer = new PageRenderer(this.textFormatter);
         this.popupManager = new PopupManager(this.viewportEl, this.textFormatter);
 
+        // Initialize event router with callbacks
+        this.eventRouter = new EventRouter(this.viewportEl, {
+            onResize: () => this.handleResize(),
+            onGlobalClick: (e) => this.handleGlobalClick(e),
+            onWheelZoom: (e) => this.handleWheelZoom(e),
+            onPanStart: (e) => this.handlePanStart(e),
+            onPanMove: (e) => this.handlePanMove(e),
+            onPanEnd: () => this.handlePanEnd(),
+            onWordClick: (e) => this.handleWordClick(e),
+            onKeydown: (e) => this.handleNavigationKey(e)
+        });
+
         this.makeBodyFocusable();
         this.initChannel();
-        this.bindEvents();
+        this.eventRouter.bindAll();
     }
 
     makeBodyFocusable() {
@@ -53,49 +68,17 @@ class MangaViewer {
     }
 
     initChannel() {
-        if (typeof qt !== "undefined" && qt.webChannelTransport) {
-            new QWebChannel(qt.webChannelTransport, (channel) => {
-                console.log("QWebChannel connected.");
-                this.bridge = channel.objects.connector;
-                if (!this.bridge) {
-                    console.error("Connector object not found in WebChannel objects:", channel.objects);
-                    return;
-                }
-                console.log("Bridge object found:", this.bridge);
-                
-                // Set bridge on pageRenderer for block clicks
-                if (this.pageRenderer) {
-                    this.pageRenderer.setBridge(this.bridge);
-                }
-            });
-        } else {
-            console.error("Qt WebChannel not found! Ensure this is running inside QWebEngineView.");
-        }
+        this.channelBridge.initialize((connector) => {
+            // Set bridge on pageRenderer for block clicks
+            if (this.pageRenderer) {
+                this.pageRenderer.setBridge(connector);
+            }
+        });
     }
 
-    bindEvents() {
-        window.addEventListener("resize", () => {
-            if (this.lastData) this.recomputeScale();
-        });
-
-        window.addEventListener("click", (e) => this.handleGlobalClick(e));
-
-        if (this.viewportEl) {
-            this.viewportEl.addEventListener("wheel", (e) => this.handleWheelZoom(e), { passive: false });
-            this.viewportEl.addEventListener("mousedown", (e) => this.handlePanStart(e));
-            this.viewportEl.addEventListener("mousemove", (e) => this.handlePanMove(e));
-            this.viewportEl.addEventListener("mouseup", () => this.handlePanEnd());
-            this.viewportEl.addEventListener("mouseleave", () => this.handlePanEnd());
-            
-            // NEW: Delegate click handler for word spans
-            this.viewportEl.addEventListener("click", (e) => this.handleWordClick(e));
-        }
-
-        const navHandler = (event) => this.handleNavigationKey(event);
-        window.addEventListener("keydown", navHandler, { passive: false });
-        document.addEventListener("keydown", navHandler, { passive: false, capture: true });
-        if (document.body) {
-            document.body.addEventListener("keydown", navHandler, { passive: false, capture: true });
+    handleResize() {
+        if (this.lastData) {
+            this.recomputeScale();
         }
     }
 
@@ -119,10 +102,8 @@ class MangaViewer {
 
         console.log(`[JS] Word clicked: lemma="${lemma}", surface="${surface}", x=${rect.x}, y=${rect.y}`);
 
-        // Emit signal to Python via QWebChannel
-        if (this.bridge && typeof this.bridge.requestWordLookup === "function") {
-            this.bridge.requestWordLookup(lemma, surface, rect.x, rect.y, () => {});
-        }
+        // Emit signal to Python via ChannelBridge
+        this.channelBridge.requestWordLookup(lemma, surface, rect.x, rect.y);
     }
 
     // Entry point called from Python
@@ -237,7 +218,7 @@ class MangaViewer {
             event.preventDefault();
             event.stopPropagation();
             const dir = event.key === "ArrowLeft" ? "next" : "prev"; // RTL: left=next, right=prev
-            this.sendNavigation(dir);
+            this.channelBridge.requestNavigation(dir);
         }
     }
 
@@ -246,12 +227,6 @@ class MangaViewer {
         if (event.target.classList && event.target.classList.contains("word")) return;
         if (this.popupManager.contains(event.target)) return;
         this.popupManager.hide();
-    }
-
-    sendNavigation(direction) {
-        if (this.bridge && typeof this.bridge.requestNavigation === "function") {
-            this.bridge.requestNavigation(direction, () => {});
-        }
     }
 
     clamp(value, min, max) {
