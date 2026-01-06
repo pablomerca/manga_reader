@@ -1,27 +1,12 @@
 "use strict";
 
-// Global state
-let bridge = null;
-let lastData = null;
-let viewportEl = null;
-
-// Zoom state (fit-to-window scale is recalculated on resize, userScale is driven by Ctrl+wheel)
-const ZOOM_STEP = 0.1;
-const MIN_USER_SCALE = 0.2;
-const MAX_USER_SCALE = 5.0;
-let userScale = 1.0;
-
-// Layout cache to avoid recomputing dimensions when only zoom changes
-const layoutState = {
-    totalWidth: 0,
-    maxHeight: 0,
-    fitScale: 1.0,
-};
-
-"use strict";
+import { TextFormatter } from './modules/TextFormatter.js';
 
 class MangaViewer {
     constructor() {
+        // Text utilities
+        this.textFormatter = new TextFormatter();
+        
         // Zoom state
         this.ZOOM_STEP = 0.1;
         this.MIN_USER_SCALE = 0.2;
@@ -371,7 +356,7 @@ class MangaViewer {
                 
                 // Wrap words in this line
                 if (lineWords.length > 0) {
-                    lineEl.innerHTML = this.wrapWordsInText(lineText, lineWords);
+                    lineEl.innerHTML = this.textFormatter.wrapWordsInText(lineText, lineWords);
                 } else {
                     lineEl.textContent = lineText;
                 }
@@ -383,64 +368,6 @@ class MangaViewer {
             });
         }
         return el;
-    }
-
-    /**
-     * Wraps word tokens in HTML spans for highlighting and interaction.
-     * Works on the full block text with correct offsets.
-     */
-    wrapWordsInText(text, words) {
-        if (!words || words.length === 0) {
-            return this.escapeHtml(text);
-        }
-
-        // Sort words by start offset
-        const sortedWords = [...words].sort((a, b) => a.start - b.start);
-
-        let result = "";
-        let lastIndex = 0;
-
-        for (const word of sortedWords) {
-            // Add text before the word
-            if (word.start > lastIndex) {
-                result += this.escapeHtml(text.substring(lastIndex, word.start));
-            }
-
-            // Add the word with span
-            const wordText = text.substring(word.start, word.end);
-            const escapedLemma = this.escapeAttr(word.lemma);
-            result += `<span class="word" data-lemma="${escapedLemma}">${this.escapeHtml(wordText)}</span>`;
-
-            lastIndex = word.end;
-        }
-
-        // Add remaining text
-        if (lastIndex < text.length) {
-            result += this.escapeHtml(text.substring(lastIndex));
-        }
-
-        return result;
-    }
-
-    /**
-     * Escapes HTML special characters to prevent XSS.
-     */
-    escapeHtml(text) {
-        const map = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#039;",
-        };
-        return text.replace(/[&<>"']/g, (m) => map[m]);
-    }
-
-    /**
-     * Escapes HTML attribute values.
-     */
-    escapeAttr(text) {
-        return text.replace(/"/g, "&quot;");
     }
 
     clamp(value, min, max) {
@@ -457,8 +384,8 @@ class MangaViewer {
         const popup = document.createElement("div");
         popup.className = "dictionary-popup";
 
-        const safeSurface = this.escapeHtml(payload.surface || "");
-        const safeReading = this.escapeHtml(payload.reading || "");
+        const safeSurface = this.textFormatter.escapeHtml(payload.surface || "");
+        const safeReading = this.textFormatter.escapeHtml(payload.reading || "");
         const senses = Array.isArray(payload.senses) ? payload.senses : [];
         const notFound = Boolean(payload.notFound);
 
@@ -468,9 +395,9 @@ class MangaViewer {
         if (!notFound && senses.length > 0) {
             sensesHtml = senses
                 .map((sense, idx) => {
-                    const glosses = Array.isArray(sense.glosses) ? sense.glosses.map((g) => this.escapeHtml(g)).join("; ") : "";
+                    const glosses = Array.isArray(sense.glosses) ? sense.glosses.map((g) => this.textFormatter.escapeHtml(g)).join("; ") : "";
                     const pos = Array.isArray(sense.pos) ? sense.pos.filter(Boolean).join(", ") : "";
-                    const posPart = pos ? `<span class="dict-pos">${this.escapeHtml(pos)}</span>` : "";
+                    const posPart = pos ? `<span class="dict-pos">${this.textFormatter.escapeHtml(pos)}</span>` : "";
                     return `<div class="dict-sense"><div class="dict-sense-title">${idx + 1}${posPart ? " · " + posPart : ""}</div><div class="dict-gloss">${glosses}</div></div>`;
                 })
                 .join("");
