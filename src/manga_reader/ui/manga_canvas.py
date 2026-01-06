@@ -25,8 +25,8 @@ class WebConnector(QObject):
     # Signal to notify Python that a block was clicked
     blockClickedSignal = Signal(int, int)  # id, ? might pass ID or metadata
     navigationSignal = Signal(str)  # "next" | "prev"
-    # Signal to notify Python that a noun was clicked
-    nounClickedSignal = Signal(str, str, int, int)  # lemma, surface, x, y
+    # Signal to notify Python that a word was clicked (noun, verb, adjective, etc.)
+    wordClickedSignal = Signal(str, str, int, int)  # lemma, surface, x, y
 
     def __init__(self):
         super().__init__()
@@ -46,10 +46,10 @@ class WebConnector(QObject):
         self.navigationSignal.emit(direction)
 
     @Slot(str, str, int, int)
-    def requestNounLookup(self, lemma: str, surface: str, mouse_x: int, mouse_y: int):
-        """Called from JS when a noun span is clicked."""
-        print(f"DEBUG: Python received noun click: lemma='{lemma}', surface='{surface}', x={mouse_x}, y={mouse_y}")
-        self.nounClickedSignal.emit(lemma, surface, mouse_x, mouse_y)
+    def requestWordLookup(self, lemma: str, surface: str, mouse_x: int, mouse_y: int):
+        """Called from JS when a word span is clicked."""
+        print(f"DEBUG: Python received word click: lemma='{lemma}', surface='{surface}', x={mouse_x}, y={mouse_y}")
+        self.wordClickedSignal.emit(lemma, surface, mouse_x, mouse_y)
 
 
 class MangaCanvas(QWidget):
@@ -59,8 +59,8 @@ class MangaCanvas(QWidget):
     block_clicked = Signal(int, int)  # x, y coordinates
     # Signal emitted for navigation (preventing browser scroll)
     navigation_requested = Signal(str) # "next" or "prev"
-    # Signal emitted when user clicks on a noun
-    noun_clicked = Signal(str, str, int, int)  # lemma, surface, mouse_x, mouse_y
+    # Signal emitted when user clicks on a word (noun, verb, adjective, etc.)
+    word_clicked = Signal(str, str, int, int)  # lemma, surface, mouse_x, mouse_y
     
     def __init__(self, morphology_service: Optional[MorphologyService] = None):
         super().__init__()
@@ -91,8 +91,8 @@ class MangaCanvas(QWidget):
 
         # Forward JS navigation requests to canvas signal
         self.bridge.navigationSignal.connect(self.navigation_requested)
-        # Forward noun click requests to canvas signal
-        self.bridge.nounClickedSignal.connect(self.noun_clicked)
+        # Forward word click requests to canvas signal
+        self.bridge.wordClickedSignal.connect(self.word_clicked)
         
         layout.addWidget(self.web_view)
         
@@ -181,8 +181,8 @@ class MangaCanvas(QWidget):
         for idx, block in enumerate(page.ocr_blocks):
             font_size = self._calculate_font_size(block)
             
-            # Extract nouns from block text for HTML wrapping
-            nouns = self._extract_block_nouns(block.full_text)
+            # Extract words from block text for HTML wrapping
+            words = self._extract_block_words(block.full_text)
             
             block_dict = {
                 "id": idx,  # Simple ID for now
@@ -192,14 +192,14 @@ class MangaCanvas(QWidget):
                 "height": block.height,
                 "fontSize": font_size,
                 "lines": block.text_lines,
-                "nouns": [  # NEW: noun metadata for JavaScript highlight wrapping
+                "words": [  # Metadata for JavaScript highlight wrapping (currently nouns, extensible to other POS)
                     {
                         "surface": token.surface,
                         "lemma": token.lemma,
                         "start": token.start_offset,
                         "end": token.end_offset,
                     }
-                    for token in nouns
+                    for token in words
                 ],
             }
             blocks_data.append(block_dict)
@@ -241,19 +241,21 @@ class MangaCanvas(QWidget):
         
         return max(MIN_FONT_SIZE, min(int(optimal_size), MAX_FONT_SIZE))
 
-    def _extract_block_nouns(self, text: str):
+    def _extract_block_words(self, text: str):
         """
-        Extract nouns from OCR block text using morphology service.
+        Extract words from OCR block text using morphology service.
+        Currently extracts nouns; will be extended to other parts of speech.
         
         Args:
             text: Full text from OCR block
             
         Returns:
-            List of Token objects representing nouns
+            List of Token objects representing words of interest (currently nouns)
         """
         if not text or not self.morphology_service:
             return []
         
+        # Currently only extracting nouns; future: expand to verbs, adjectives, etc.
         return self.morphology_service.extract_nouns(text)
 
     def clear(self):
@@ -265,10 +267,10 @@ class MangaCanvas(QWidget):
 
     def show_dictionary_popup(self, payload: dict):
         """Forward dictionary popup payload to JS for rendering."""
-        script = f"showNounPopup({json.dumps(payload)});"
+        script = f"showWordPopup({json.dumps(payload)});"
         self.web_view.page().runJavaScript(script)
 
     def hide_dictionary_popup(self):
         """Hide the dictionary popup in JS."""
-        self.web_view.page().runJavaScript("hideNounPopup();")
+        self.web_view.page().runJavaScript("hideWordPopup();")
 

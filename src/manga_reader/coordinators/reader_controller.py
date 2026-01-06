@@ -189,8 +189,8 @@ class ReaderController(QObject):
         self._render_current_page()
 
     @Slot(str, str, int, int)
-    def handle_noun_clicked(self, lemma: str, surface: str, mouse_x: int, mouse_y: int):
-        """Handle noun clicks from the canvas and show dictionary popup."""
+    def handle_word_clicked(self, lemma: str, surface: str, mouse_x: int, mouse_y: int):
+        """Handle word clicks from the canvas and show dictionary popup."""
         if self.dictionary_service is None:
             return
 

@@ -40,7 +40,7 @@ def main():
     
     # 5. Inject controller into MainWindow and let it wire signals internally
     main_window.set_controller(controller)
-    canvas.noun_clicked.connect(controller.handle_noun_clicked)
+    canvas.word_clicked.connect(controller.handle_word_clicked)
     
     # 6. Show UI and start event loop
     main_window.show()

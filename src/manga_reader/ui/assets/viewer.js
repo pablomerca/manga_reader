@@ -94,8 +94,8 @@ class MangaViewer {
             this.viewportEl.addEventListener("mouseup", () => this.handlePanEnd());
             this.viewportEl.addEventListener("mouseleave", () => this.handlePanEnd());
             
-            // NEW: Delegate click handler for noun spans
-            this.viewportEl.addEventListener("click", (e) => this.handleNounClick(e));
+            // NEW: Delegate click handler for word spans
+            this.viewportEl.addEventListener("click", (e) => this.handleWordClick(e));
         }
 
         const navHandler = (event) => this.handleNavigationKey(event);
@@ -107,28 +107,28 @@ class MangaViewer {
     }
 
     /**
-     * Handle clicks on noun spans to trigger dictionary lookup.
-     * Only handles clicks on .noun spans, not on regular OCR blocks.
+     * Handle clicks on word spans to trigger dictionary lookup.
+     * Only handles clicks on .word spans, not on regular OCR blocks.
      */
-    handleNounClick(event) {
-        // Check if the click target is a noun span
-        if (!event.target.classList.contains("noun")) {
+    handleWordClick(event) {
+        // Check if the click target is a word span
+        if (!event.target.classList.contains("word")) {
             return;
         }
 
-        // Prevent default click handling for nouns
+        // Prevent default click handling for words
         event.stopPropagation();
 
-        const nounSpan = event.target;
-        const lemma = nounSpan.dataset.lemma;
-        const surface = nounSpan.textContent;
-        const rect = nounSpan.getBoundingClientRect();
+        const wordSpan = event.target;
+        const lemma = wordSpan.dataset.lemma;
+        const surface = wordSpan.textContent;
+        const rect = wordSpan.getBoundingClientRect();
 
-        console.log(`[JS] Noun clicked: lemma="${lemma}", surface="${surface}", x=${rect.x}, y=${rect.y}`);
+        console.log(`[JS] Word clicked: lemma="${lemma}", surface="${surface}", x=${rect.x}, y=${rect.y}`);
 
         // Emit signal to Python via QWebChannel
-        if (this.bridge && typeof this.bridge.requestNounLookup === "function") {
-            this.bridge.requestNounLookup(lemma, surface, rect.x, rect.y, () => {});
+        if (this.bridge && typeof this.bridge.requestWordLookup === "function") {
+            this.bridge.requestWordLookup(lemma, surface, rect.x, rect.y, () => {});
         }
     }
 
@@ -138,7 +138,7 @@ class MangaViewer {
             console.log("Received data update via runJavaScript.");
             this.lastData = data;
             this.userScale = 1.0;
-            this.hideNounPopup();
+            this.hideWordPopup();
             this.renderPages(data);
             this.resetViewportScroll();
             this.recomputeScale();
@@ -283,7 +283,7 @@ class MangaViewer {
 
     handleNavigationKey(event) {
         if (event.key === "Escape") {
-            this.hideNounPopup();
+            this.hideWordPopup();
             return;
         }
 
@@ -297,9 +297,9 @@ class MangaViewer {
 
     handleGlobalClick(event) {
         if (!this.popupEl) return;
-        if (event.target.classList && event.target.classList.contains("noun")) return;
+        if (event.target.classList && event.target.classList.contains("word")) return;
         if (this.popupEl.contains(event.target)) return;
-        this.hideNounPopup();
+        this.hideWordPopup();
     }
 
     sendNavigation(direction) {
@@ -356,22 +356,22 @@ class MangaViewer {
                 const lineEl = document.createElement("div");
                 lineEl.className = "ocr-line";
                 
-                // Filter nouns that belong to this line
+                // Filter words that belong to this line
                 const lineStart = currentOffset;
                 const lineEnd = currentOffset + lineText.length;
-                const lineNouns = block.nouns ? block.nouns.filter(noun => {
-                    return noun.start < lineEnd && noun.end > lineStart;
-                }).map(noun => ({
+                const lineWords = block.words ? block.words.filter(word => {
+                    return word.start < lineEnd && word.end > lineStart;
+                }).map(word => ({
                     // Adjust offsets to be relative to this line
-                    surface: noun.surface,
-                    lemma: noun.lemma,
-                    start: Math.max(0, noun.start - lineStart),
-                    end: Math.min(lineText.length, noun.end - lineStart)
+                    surface: word.surface,
+                    lemma: word.lemma,
+                    start: Math.max(0, word.start - lineStart),
+                    end: Math.min(lineText.length, word.end - lineStart)
                 })) : [];
                 
-                // Wrap nouns in this line
-                if (lineNouns.length > 0) {
-                    lineEl.innerHTML = this.wrapNounsInText(lineText, lineNouns);
+                // Wrap words in this line
+                if (lineWords.length > 0) {
+                    lineEl.innerHTML = this.wrapWordsInText(lineText, lineWords);
                 } else {
                     lineEl.textContent = lineText;
                 }
@@ -386,32 +386,32 @@ class MangaViewer {
     }
 
     /**
-     * Wraps noun tokens in HTML spans for highlighting and interaction.
+     * Wraps word tokens in HTML spans for highlighting and interaction.
      * Works on the full block text with correct offsets.
      */
-    wrapNounsInText(text, nouns) {
-        if (!nouns || nouns.length === 0) {
+    wrapWordsInText(text, words) {
+        if (!words || words.length === 0) {
             return this.escapeHtml(text);
         }
 
-        // Sort nouns by start offset
-        const sortedNouns = [...nouns].sort((a, b) => a.start - b.start);
+        // Sort words by start offset
+        const sortedWords = [...words].sort((a, b) => a.start - b.start);
 
         let result = "";
         let lastIndex = 0;
 
-        for (const noun of sortedNouns) {
-            // Add text before the noun
-            if (noun.start > lastIndex) {
-                result += this.escapeHtml(text.substring(lastIndex, noun.start));
+        for (const word of sortedWords) {
+            // Add text before the word
+            if (word.start > lastIndex) {
+                result += this.escapeHtml(text.substring(lastIndex, word.start));
             }
 
-            // Add the noun with span
-            const nounText = text.substring(noun.start, noun.end);
-            const escapedLemma = this.escapeAttr(noun.lemma);
-            result += `<span class="noun" data-lemma="${escapedLemma}">${this.escapeHtml(nounText)}</span>`;
+            // Add the word with span
+            const wordText = text.substring(word.start, word.end);
+            const escapedLemma = this.escapeAttr(word.lemma);
+            result += `<span class="word" data-lemma="${escapedLemma}">${this.escapeHtml(wordText)}</span>`;
 
-            lastIndex = noun.end;
+            lastIndex = word.end;
         }
 
         // Add remaining text
@@ -447,7 +447,7 @@ class MangaViewer {
         return Math.min(Math.max(value, min), max);
     }
 
-    showNounPopup(payload) {
+    showWordPopup(payload) {
         if (!payload || !this.viewportEl) return;
 
         if (this.popupEl) {
@@ -509,7 +509,7 @@ class MangaViewer {
         this.popupEl = popup;
     }
 
-    hideNounPopup() {
+    hideWordPopup() {
         if (!this.popupEl) return;
         this.popupEl.remove();
         this.popupEl = null;
@@ -519,5 +519,5 @@ class MangaViewer {
 // Instantiate and expose updateView for Python
 const mangaViewer = new MangaViewer();
 window.updateView = (data) => mangaViewer.updateView(data);
-window.showNounPopup = (payload) => mangaViewer.showNounPopup(payload);
-window.hideNounPopup = () => mangaViewer.hideNounPopup();
+window.showWordPopup = (payload) => mangaViewer.showWordPopup(payload);
+window.hideWordPopup = () => mangaViewer.hideWordPopup();

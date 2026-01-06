@@ -80,8 +80,8 @@ body {
     opacity: 1;
 }
 
-/* Noun element styling for interactive lookup */
-.noun {
+/* Word element styling for interactive lookup */
+.word {
     cursor: pointer;
     transition: background-color 0.15s ease-out, box-shadow 0.15s ease-out;
     padding: 2px 4px;
@@ -89,7 +89,7 @@ body {
     background-color: transparent;
 }
 
-.noun:hover {
+.word:hover {
     background-color: #ffeb3b;
     box-shadow: 0 0 4px rgba(255, 235, 59, 0.7);
 }
