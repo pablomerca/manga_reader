@@ -93,3 +93,69 @@ body {
     background-color: #ffeb3b;
     box-shadow: 0 0 4px rgba(255, 235, 59, 0.7);
 }
+
+/* Dictionary popup styling */
+.dictionary-popup {
+    position: fixed;
+    background: #0f141a;
+    color: #e7edf5;
+    border: 1px solid #1f2a33;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border-radius: 10px;
+    padding: 12px 14px;
+    z-index: 999;
+    width: 360px;
+    max-height: 240px;
+    box-sizing: border-box;
+    overflow: hidden;
+    backdrop-filter: blur(4px);
+}
+
+.dict-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.dict-surface {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.dict-reading {
+    font-size: 14px;
+    color: #9fb3c9;
+}
+
+.dict-body {
+    max-height: 160px;
+    overflow-y: auto;
+    padding-right: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dict-sense-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #8fb4d9;
+    margin-bottom: 4px;
+}
+
+.dict-pos {
+    color: #c7d9ed;
+}
+
+.dict-gloss {
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.dict-empty {
+    font-size: 14px;
+    color: #9fb3c9;
+}

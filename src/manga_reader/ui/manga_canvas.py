@@ -126,6 +126,9 @@ class MangaCanvas(QWidget):
         if not pages:
             self.clear()
             return
+
+        # Reset any dictionary popup before redrawing
+        self.hide_dictionary_popup()
         
         self.current_page = pages[0]  # Keep reference
         
@@ -258,4 +261,14 @@ class MangaCanvas(QWidget):
         self.current_page = None
         # Send empty data
         self.web_view.page().runJavaScript("updateView({pages: []});")
+        self.hide_dictionary_popup()
+
+    def show_dictionary_popup(self, payload: dict):
+        """Forward dictionary popup payload to JS for rendering."""
+        script = f"showNounPopup({json.dumps(payload)});"
+        self.web_view.page().runJavaScript(script)
+
+    def hide_dictionary_popup(self):
+        """Hide the dictionary popup in JS."""
+        self.web_view.page().runJavaScript("hideNounPopup();")
 

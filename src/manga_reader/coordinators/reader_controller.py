@@ -6,6 +6,7 @@ from PySide6.QtCore import QObject, Slot
 
 from manga_reader.core import MangaVolume
 from manga_reader.io import VolumeIngestor
+from manga_reader.services import DictionaryService
 from manga_reader.ui import MainWindow, MangaCanvas
 
 
@@ -15,12 +16,19 @@ class ReaderController(QObject):
     Manages live session state and routes signals between UI and services.
     """
     
-    def __init__(self, main_window: MainWindow, canvas: MangaCanvas, ingestor: VolumeIngestor):
+    def __init__(
+        self,
+        main_window: MainWindow,
+        canvas: MangaCanvas,
+        ingestor: VolumeIngestor,
+        dictionary_service: DictionaryService,
+    ):
         super().__init__()
         
         self.main_window = main_window
         self.canvas = canvas
         self.ingestor = ingestor
+        self.dictionary_service = dictionary_service
         
         # Session state
         self.current_volume: MangaVolume | None = None
@@ -74,6 +82,8 @@ class ReaderController(QObject):
         pages_to_render = self._get_pages_to_render()
         if pages_to_render:
             self.canvas.render_pages(pages_to_render)
+        else:
+            self.canvas.hide_dictionary_popup()
     
     def _get_pages_to_render(self) -> list:
         """
@@ -177,3 +187,25 @@ class ReaderController(QObject):
         self.view_mode = mode
         # Re-render current page(s) with new mode
         self._render_current_page()
+
+    @Slot(str, str, int, int)
+    def handle_noun_clicked(self, lemma: str, surface: str, mouse_x: int, mouse_y: int):
+        """Handle noun clicks from the canvas and show dictionary popup."""
+        if self.dictionary_service is None:
+            return
+
+        entry = self.dictionary_service.lookup(lemma, surface)
+
+        payload = {
+            "surface": surface or lemma,
+            "reading": entry.reading if entry else "",
+            "senses": [
+                {"glosses": sense.glosses, "pos": sense.pos}
+                for sense in entry.senses
+            ] if entry else [],
+            "mouseX": mouse_x,
+            "mouseY": mouse_y,
+            "notFound": entry is None,
+        }
+
+        self.canvas.show_dictionary_popup(payload)

@@ -39,6 +39,7 @@ class MangaViewer {
         // DOM refs
         this.viewportEl = null;
         this.wrapperEl = null;
+        this.popupEl = null;
 
         // Channel/state
         this.bridge = null;
@@ -83,6 +84,8 @@ class MangaViewer {
         window.addEventListener("resize", () => {
             if (this.lastData) this.recomputeScale();
         });
+
+        window.addEventListener("click", (e) => this.handleGlobalClick(e));
 
         if (this.viewportEl) {
             this.viewportEl.addEventListener("wheel", (e) => this.handleWheelZoom(e), { passive: false });
@@ -135,6 +138,7 @@ class MangaViewer {
             console.log("Received data update via runJavaScript.");
             this.lastData = data;
             this.userScale = 1.0;
+            this.hideNounPopup();
             this.renderPages(data);
             this.resetViewportScroll();
             this.recomputeScale();
@@ -223,6 +227,11 @@ class MangaViewer {
     handlePanStart(event) {
         if (event.button !== 0 || !this.viewportEl) return;
 
+        // Don't pan if clicking inside the dictionary popup
+        if (this.popupEl && this.popupEl.contains(event.target)) {
+            return;
+        }
+
         // Check if clicked element is within an OCR line (includes noun spans, text content, etc.)
         let target = event.target;
         let isInOCRLine = false;
@@ -273,12 +282,24 @@ class MangaViewer {
     }
 
     handleNavigationKey(event) {
+        if (event.key === "Escape") {
+            this.hideNounPopup();
+            return;
+        }
+
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
             event.preventDefault();
             event.stopPropagation();
             const dir = event.key === "ArrowLeft" ? "next" : "prev"; // RTL: left=next, right=prev
             this.sendNavigation(dir);
         }
+    }
+
+    handleGlobalClick(event) {
+        if (!this.popupEl) return;
+        if (event.target.classList && event.target.classList.contains("noun")) return;
+        if (this.popupEl.contains(event.target)) return;
+        this.hideNounPopup();
     }
 
     sendNavigation(direction) {
@@ -425,8 +446,78 @@ class MangaViewer {
     clamp(value, min, max) {
         return Math.min(Math.max(value, min), max);
     }
+
+    showNounPopup(payload) {
+        if (!payload || !this.viewportEl) return;
+
+        if (this.popupEl) {
+            this.popupEl.remove();
+        }
+
+        const popup = document.createElement("div");
+        popup.className = "dictionary-popup";
+
+        const safeSurface = this.escapeHtml(payload.surface || "");
+        const safeReading = this.escapeHtml(payload.reading || "");
+        const senses = Array.isArray(payload.senses) ? payload.senses : [];
+        const notFound = Boolean(payload.notFound);
+
+        const header = `<div class="dict-header"><div class="dict-surface">${safeSurface}</div><div class="dict-reading">${safeReading}</div></div>`;
+
+        let sensesHtml = "";
+        if (!notFound && senses.length > 0) {
+            sensesHtml = senses
+                .map((sense, idx) => {
+                    const glosses = Array.isArray(sense.glosses) ? sense.glosses.map((g) => this.escapeHtml(g)).join("; ") : "";
+                    const pos = Array.isArray(sense.pos) ? sense.pos.filter(Boolean).join(", ") : "";
+                    const posPart = pos ? `<span class="dict-pos">${this.escapeHtml(pos)}</span>` : "";
+                    return `<div class="dict-sense"><div class="dict-sense-title">${idx + 1}${posPart ? " · " + posPart : ""}</div><div class="dict-gloss">${glosses}</div></div>`;
+                })
+                .join("");
+        } else {
+            sensesHtml = `<div class="dict-empty">No definition found.</div>`;
+        }
+
+        popup.innerHTML = `${header}<div class="dict-body">${sensesHtml}</div>`;
+
+        const popupWidth = 360;
+        const popupHeight = 240;
+        const anchorX = payload.mouseX || 0;
+        const anchorY = payload.mouseY || 0;
+        const viewportRect = this.viewportEl.getBoundingClientRect();
+        const offset = 12;
+
+        let left = anchorX + offset;
+        if (left + popupWidth > viewportRect.right) {
+            left = anchorX - popupWidth - offset;
+        }
+        left = this.clamp(left, viewportRect.left + 8, viewportRect.right - popupWidth - 8);
+
+        let top = anchorY + offset;
+        if (top + popupHeight > viewportRect.bottom) {
+            top = anchorY - popupHeight - offset;
+        }
+        top = this.clamp(top, viewportRect.top + 8, viewportRect.bottom - popupHeight - 8);
+
+        popup.style.width = `${popupWidth}px`;
+        popup.style.maxHeight = `${popupHeight}px`;
+        popup.style.left = `${left}px`;
+        popup.style.top = `${top}px`;
+        popup.style.position = "fixed";
+
+        this.viewportEl.appendChild(popup);
+        this.popupEl = popup;
+    }
+
+    hideNounPopup() {
+        if (!this.popupEl) return;
+        this.popupEl.remove();
+        this.popupEl = null;
+    }
 }
 
 // Instantiate and expose updateView for Python
 const mangaViewer = new MangaViewer();
 window.updateView = (data) => mangaViewer.updateView(data);
+window.showNounPopup = (payload) => mangaViewer.showNounPopup(payload);
+window.hideNounPopup = () => mangaViewer.hideNounPopup();

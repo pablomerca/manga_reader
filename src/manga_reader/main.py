@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication
 
 from manga_reader.coordinators import ReaderController
 from manga_reader.io import VolumeIngestor
-from manga_reader.services import MorphologyService
+from manga_reader.services import DictionaryService, MorphologyService
 from manga_reader.ui import MainWindow, MangaCanvas
 
 
@@ -22,6 +22,7 @@ def main():
     
     # 2. Initialize Services & Infrastructure
     morphology_service = MorphologyService()
+    dictionary_service = DictionaryService()
     ingestor = VolumeIngestor()
     
     # 3. Construct UI (injecting dependencies)
@@ -33,11 +34,13 @@ def main():
     controller = ReaderController(
         main_window=main_window,
         canvas=canvas,
-        ingestor=ingestor
+        ingestor=ingestor,
+        dictionary_service=dictionary_service,
     )
     
     # 5. Inject controller into MainWindow and let it wire signals internally
     main_window.set_controller(controller)
+    canvas.noun_clicked.connect(controller.handle_noun_clicked)
     
     # 6. Show UI and start event loop
     main_window.show()
