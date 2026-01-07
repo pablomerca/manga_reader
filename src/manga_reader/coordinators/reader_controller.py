@@ -6,7 +6,7 @@ from PySide6.QtCore import QObject, Slot
 
 from manga_reader.core import MangaVolume
 from manga_reader.io import VolumeIngestor
-from manga_reader.services import DictionaryService
+from manga_reader.services import DictionaryService, VocabularyService
 from manga_reader.ui import MainWindow, MangaCanvas
 
 
@@ -22,6 +22,7 @@ class ReaderController(QObject):
         canvas: MangaCanvas,
         ingestor: VolumeIngestor,
         dictionary_service: DictionaryService,
+        vocabulary_service: VocabularyService,
     ):
         super().__init__()
         
@@ -29,6 +30,7 @@ class ReaderController(QObject):
         self.canvas = canvas
         self.ingestor = ingestor
         self.dictionary_service = dictionary_service
+        self.vocabulary_service = vocabulary_service
         
         # Session state
         self.current_volume: MangaVolume | None = None

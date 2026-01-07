@@ -61,6 +61,7 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+
 # Flask stuff:
 instance/
 .webassets-cache
@@ -222,3 +223,6 @@ docs/
 
 .vscode/
 .github/
+
+# Manga Reader vocabulary database (MVP - in project root)
+vocab.db

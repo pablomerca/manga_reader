@@ -1,12 +1,13 @@
 """Main entry point for the manga reader application."""
 
 import sys
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
 from manga_reader.coordinators import ReaderController
-from manga_reader.io import VolumeIngestor
-from manga_reader.services import DictionaryService, MorphologyService
+from manga_reader.io import DatabaseManager, VolumeIngestor
+from manga_reader.services import DictionaryService, MorphologyService, VocabularyService
 from manga_reader.ui import MainWindow, MangaCanvas
 
 
@@ -24,6 +25,16 @@ def main():
     morphology_service = MorphologyService()
     dictionary_service = DictionaryService()
     ingestor = VolumeIngestor()
+
+    # TODO: In production, migrate to proper OS-specific paths (~/.local/share, etc.)
+
+    # For MVP, store database in project root for fast dev iteration
+    project_root = Path(__file__).parent.parent.parent
+
+    db_path = project_root / "vocab.db"
+    database_manager = DatabaseManager(db_path)
+    database_manager.ensure_schema()
+    vocabulary_service = VocabularyService(database_manager, morphology_service)
     
     # 3. Construct UI (injecting dependencies)
     canvas = MangaCanvas(morphology_service=morphology_service)
@@ -36,6 +47,7 @@ def main():
         canvas=canvas,
         ingestor=ingestor,
         dictionary_service=dictionary_service,
+        vocabulary_service=vocabulary_service,
     )
     
     # 5. Inject controller into MainWindow and let it wire signals internally
