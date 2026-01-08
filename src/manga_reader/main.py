@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QApplication
 from manga_reader.coordinators import ReaderController
 from manga_reader.io import DatabaseManager, VolumeIngestor
 from manga_reader.services import DictionaryService, MorphologyService, VocabularyService
-from manga_reader.ui import MainWindow, MangaCanvas
+from manga_reader.ui import MainWindow, MangaCanvas, WordContextPanel
 
 
 def main():
@@ -38,8 +38,10 @@ def main():
     
     # 3. Construct UI (injecting dependencies)
     canvas = MangaCanvas(morphology_service=morphology_service)
+    context_panel = WordContextPanel()
     main_window = MainWindow()
     main_window.set_canvas(canvas)
+    main_window.set_context_panel(context_panel)
     
     # 4. Instantiate Coordinator (Dependency Injection)
     controller = ReaderController(
@@ -48,6 +50,7 @@ def main():
         ingestor=ingestor,
         dictionary_service=dictionary_service,
         vocabulary_service=vocabulary_service,
+        context_panel=context_panel,
     )
     
     # 5. Inject controller into MainWindow and let it wire signals internally

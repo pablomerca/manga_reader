@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, Slot
 from manga_reader.core import MangaVolume
 from manga_reader.io import VolumeIngestor
 from manga_reader.services import DictionaryService, VocabularyService
-from manga_reader.ui import MainWindow, MangaCanvas
+from manga_reader.ui import MainWindow, MangaCanvas, WordContextPanel
 
 
 class ReaderController(QObject):
@@ -23,6 +23,7 @@ class ReaderController(QObject):
         ingestor: VolumeIngestor,
         dictionary_service: DictionaryService,
         vocabulary_service: VocabularyService,
+        context_panel: WordContextPanel,
     ):
         super().__init__()
         
@@ -31,11 +32,18 @@ class ReaderController(QObject):
         self.ingestor = ingestor
         self.dictionary_service = dictionary_service
         self.vocabulary_service = vocabulary_service
+        self.context_panel = context_panel
         
         # Session state
         self.current_volume: MangaVolume | None = None
         self.current_page_number: int = 0
         self.view_mode: str = "single"  # "single" or "double"
+        self.previous_view_mode: str = "single"  # For restoring when context closes
+        self.context_panel_active: bool = False  # Track if context panel is open
+        
+        # Wire context panel signals
+        self.context_panel.closed.connect(self._on_context_panel_closed)
+        self.context_panel.appearance_selected.connect(self._on_appearance_selected)
     
     @Slot(Path)
     def handle_volume_opened(self, volume_path: Path):
@@ -296,44 +304,88 @@ class ReaderController(QObject):
     def handle_view_word_context(self, word_id: int):
         """
         Handle request to view all appearances of a tracked word.
+        Opens the context split view panel showing all occurrences.
         
         Args:
             word_id: The ID of the tracked word
         """
         try:
             # Retrieve the tracked word and its appearances
+            tracked_words = self.vocabulary_service.list_tracked_words()
+            tracked_word = next((w for w in tracked_words if w.id == word_id), None)
+            
+            if not tracked_word:
+                self.main_window.show_error(
+                    "Word Not Found",
+                    "The requested word could not be found in vocabulary."
+                )
+                return
+            
             appearances = self.vocabulary_service.list_appearances(word_id)
             
             if not appearances:
                 self.main_window.show_info(
                     "No Appearances",
-                    "This word has no recorded appearances."
+                    f"The word '{tracked_word.lemma}' has no recorded appearances."
                 )
                 return
             
-            # Build a context summary for the user
-            context_lines = []
-            for i, appearance in enumerate(appearances[:5], 1):
-                page_num = appearance.page_index + 1  # Convert 0-indexed to 1-indexed
-                volume_name = appearance.volume_name or "Unknown Volume"
-                sentence = appearance.sentence_text[:50]  # Show first 50 chars
-                context_lines.append(
-                    f"{i}. {volume_name}, Page {page_num}:\n"
-                    f"   \"{sentence}{'...' if len(appearance.sentence_text) > 50 else ''}\""
-                )
-            
-            more_text = f"\n... and {len(appearances) - 5} more occurrences" if len(appearances) > 5 else ""
-            
-            self.main_window.show_info(
-                "Word Appearances",
-                f"Found {len(appearances)} occurrence(s) of this word:\n\n" +
-                "\n".join(context_lines) + more_text
+            # Display word context in split view panel
+            self.context_panel.display_word_context(
+                word_id=word_id,
+                word_lemma=tracked_word.lemma,
+                appearances=appearances
             )
             
-            # TODO: In future iteration, allow clicking to navigate to specific occurrence
-            # TODO: Create a proper WordContextDialog with searchable/sortable list
+            # Save current view mode and switch to single page for context panel
+            self.previous_view_mode = self.view_mode
+            self.context_panel_active = True
+            
+            # Show the context panel
+            self.main_window.show_context_panel()
+            
+            # Switch to single page mode if in double page mode
+            if self.view_mode == "double":
+                self.view_mode = "single"
+                self._render_current_page()
+                
         except Exception as e:
             self.main_window.show_error(
                 "Context Lookup Failed",
                 f"Could not retrieve word appearances: {e}"
+            )
+    
+    @Slot()
+    def _on_context_panel_closed(self):
+        """Handle when user closes the context panel."""
+        self.context_panel_active = False
+        self.main_window.hide_context_panel()
+        
+        # Restore previous view mode if it was different
+        if self.view_mode != self.previous_view_mode:
+            self.view_mode = self.previous_view_mode
+            self._render_current_page()
+    
+    @Slot(int, int, int)
+    def _on_appearance_selected(self, word_id: int, appearance_id: int, page_index: int):
+        """
+        Handle when user selects an appearance in the context panel.
+        Navigate to that page.
+        
+        Args:
+            word_id: The word ID (for future use)
+            appearance_id: The appearance ID (for future use - could show highlight)
+            page_index: The page to jump to (0-indexed)
+        """
+        if self.current_volume is None:
+            return
+        
+        # Validate page index
+        if 0 <= page_index < self.current_volume.total_pages:
+            self.current_page_number = page_index
+            self._render_current_page()
+        else:
+            self.main_window.show_error(
+                "Invalid Page",
+                f"Page {page_index + 1} is not available in this volume."
             )

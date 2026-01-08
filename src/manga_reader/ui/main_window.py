@@ -14,8 +14,10 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QKeyEvent
 from PySide6.QtWidgets import (
     QFileDialog,
+    QHBoxLayout,
     QMainWindow,
     QMessageBox,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -48,9 +50,20 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # Create main layout
+        # Create main layout (vertical: top menu, bottom content)
         self.main_layout = QVBoxLayout(central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create horizontal splitter for split view support
+        # Left side: manga canvas, Right side: context panel (initially hidden)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_layout.addWidget(self.splitter)
+        
+        # Store reference to canvas container for later use
+        self.canvas_container = QWidget()
+        self.canvas_layout = QVBoxLayout(self.canvas_container)
+        self.canvas_layout.setContentsMargins(0, 0, 0, 0)
+        self.splitter.addWidget(self.canvas_container)
     
     def _create_menu_bar(self):
         """Create the application menu bar."""
@@ -140,7 +153,7 @@ class MainWindow(QMainWindow):
     # TODO: eliminate setter by wiring in constructor
     def set_canvas(self, canvas):
         """Set the manga canvas widget in the main layout."""
-        self.main_layout.addWidget(canvas)
+        self.canvas_layout.addWidget(canvas)
         
         # Connect canvas navigation signals (from browser/keyboard)
         # Note: Canvas emits 'next'/'prev' strings
@@ -180,6 +193,34 @@ class MainWindow(QMainWindow):
     def show_info(self, title: str, message: str):
         """Display an information message to the user."""
         QMessageBox.information(self, title, message)
+    
+    def set_context_panel(self, context_panel):
+        """
+        Set the word context panel and add it to the split view.
+        
+        Args:
+            context_panel: WordContextPanel widget instance
+        """
+        self.context_panel = context_panel
+        self.splitter.addWidget(context_panel)
+        # Start with context panel hidden
+        self.context_panel.hide()
+        # Set initial splitter sizes (80/20 split when context is visible)
+        self.splitter.setSizes([800, 200])
+    
+    def show_context_panel(self):
+        """Show the context panel and adjust splitter."""
+        if self.context_panel:
+            self.context_panel.show()
+            # Adjust splitter to show both panes (70/30 split)
+            self.splitter.setSizes([700, 300])
+    
+    def hide_context_panel(self):
+        """Hide the context panel."""
+        if self.context_panel:
+            self.context_panel.hide()
+            # Reset splitter to full canvas
+            self.splitter.setSizes([1000, 0])
     
     @override   
     def keyPressEvent(self, event: QKeyEvent):

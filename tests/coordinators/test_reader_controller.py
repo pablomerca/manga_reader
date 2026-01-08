@@ -10,6 +10,7 @@ from manga_reader.coordinators import ReaderController
 from manga_reader.core import MangaPage, MangaVolume, OCRBlock, TrackedWord, WordAppearance
 from manga_reader.io import DatabaseManager
 from manga_reader.services import DictionaryService, MorphologyService, VocabularyService
+from manga_reader.ui import MainWindow, MangaCanvas, WordContextPanel
 
 
 # ============================================================================
@@ -72,8 +73,19 @@ def mock_vocabulary_service(tmp_path):
 
 
 @pytest.fixture
+def mock_context_panel():
+    """Mock WordContextPanel for testing."""
+    panel = MagicMock()
+    panel.display_word_context = MagicMock()
+    panel.clear = MagicMock()
+    panel.closed = MagicMock()
+    panel.appearance_selected = MagicMock()
+    return panel
+
+
+@pytest.fixture
 def controller(mock_main_window, mock_canvas, mock_ingestor, 
-               mock_dictionary_service, mock_vocabulary_service):
+               mock_dictionary_service, mock_vocabulary_service, mock_context_panel):
     """Create a ReaderController with mocked dependencies."""
     ctrl = ReaderController(
         main_window=mock_main_window,
@@ -81,6 +93,7 @@ def controller(mock_main_window, mock_canvas, mock_ingestor,
         ingestor=mock_ingestor,
         dictionary_service=mock_dictionary_service,
         vocabulary_service=mock_vocabulary_service,
+        context_panel=mock_context_panel,
     )
     return ctrl
 
@@ -256,7 +269,8 @@ class TestHandleViewWordContext:
     """Tests for the handle_view_word_context slot."""
 
     def test_view_context_with_appearances(self, controller, 
-                                            mock_vocabulary_service, mock_main_window, tmp_path):
+                                            mock_vocabulary_service, mock_main_window,
+                                            mock_context_panel, tmp_path):
         """Test viewing context for a tracked word with multiple appearances."""
         # Setup: create a tracked word with multiple appearances
         word = mock_vocabulary_service._db.upsert_tracked_word("taberu", "たべる", "Verb")
@@ -273,12 +287,15 @@ class TestHandleViewWordContext:
         
         controller.handle_view_word_context(word.id)
         
-        # Verify the info dialog was shown
-        mock_main_window.show_info.assert_called_once()
-        call_args = mock_main_window.show_info.call_args
-        assert "Found 2 occurrence(s)" in call_args[0][1]
-        assert "Volume 1" in call_args[0][1]
-        assert "Volume 2" in call_args[0][1]
+        # Verify the context panel was shown with data
+        mock_context_panel.display_word_context.assert_called_once()
+        call_args = mock_context_panel.display_word_context.call_args
+        assert call_args[1]["word_id"] == word.id
+        assert call_args[1]["word_lemma"] == "taberu"
+        assert len(call_args[1]["appearances"]) == 2
+        
+        # Verify main window shows the panel
+        mock_main_window.show_context_panel.assert_called_once()
 
     def test_view_context_no_appearances(self, controller, 
                                           mock_vocabulary_service, mock_main_window, tmp_path):
@@ -292,8 +309,9 @@ class TestHandleViewWordContext:
         assert "No Appearances" in call_args[0][0]
 
     def test_view_context_truncates_long_sentence(self, controller,
-                                                   mock_vocabulary_service, mock_main_window, tmp_path):
-        """Test that long sentences are truncated in the context display."""
+                                                   mock_vocabulary_service, mock_main_window,
+                                                   mock_context_panel, tmp_path):
+        """Test that long sentences are displayed in the context panel."""
         word = mock_vocabulary_service._db.upsert_tracked_word("test", "てすと", "Noun")
         vol = mock_vocabulary_service._db.upsert_volume(tmp_path / "vol", "Test")
         
@@ -304,14 +322,17 @@ class TestHandleViewWordContext:
         
         controller.handle_view_word_context(word.id)
         
-        call_args = mock_main_window.show_info.call_args
-        message = call_args[0][1]
-        # Verify truncation happens (50 chars + "...")
-        assert "..." in message
+        # Verify context panel was called with the appearance
+        mock_context_panel.display_word_context.assert_called_once()
+        call_args = mock_context_panel.display_word_context.call_args
+        appearances = call_args[1]["appearances"]
+        assert len(appearances) == 1
+        # The context panel will handle truncation in its display method
 
     def test_view_context_handles_more_than_five(self, controller,
-                                                   mock_vocabulary_service, mock_main_window, tmp_path):
-        """Test that message indicates more occurrences when > 5."""
+                                                   mock_vocabulary_service, mock_main_window,
+                                                   mock_context_panel, tmp_path):
+        """Test that all occurrences are passed to the context panel."""
         word = mock_vocabulary_service._db.upsert_tracked_word("many", "おおい", "Adjective")
         vol = mock_vocabulary_service._db.upsert_volume(tmp_path / "vol", "Test")
         
@@ -323,9 +344,11 @@ class TestHandleViewWordContext:
         
         controller.handle_view_word_context(word.id)
         
-        call_args = mock_main_window.show_info.call_args
-        message = call_args[0][1]
-        assert "... and 2 more occurrences" in message
+        # Verify all 7 appearances are passed to the panel
+        mock_context_panel.display_word_context.assert_called_once()
+        call_args = mock_context_panel.display_word_context.call_args
+        appearances = call_args[1]["appearances"]
+        assert len(appearances) == 7
 
     def test_view_context_error_handling(self, controller, mock_main_window):
         """Test error handling when context lookup fails."""
