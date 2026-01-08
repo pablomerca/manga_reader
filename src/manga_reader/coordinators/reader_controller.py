@@ -291,3 +291,49 @@ class ReaderController(QObject):
                 "List Failed",
                 f"Could not retrieve vocabulary list: {e}"
             )
+
+    @Slot(int)
+    def handle_view_word_context(self, word_id: int):
+        """
+        Handle request to view all appearances of a tracked word.
+        
+        Args:
+            word_id: The ID of the tracked word
+        """
+        try:
+            # Retrieve the tracked word and its appearances
+            appearances = self.vocabulary_service.list_appearances(word_id)
+            
+            if not appearances:
+                self.main_window.show_info(
+                    "No Appearances",
+                    "This word has no recorded appearances."
+                )
+                return
+            
+            # Build a context summary for the user
+            context_lines = []
+            for i, appearance in enumerate(appearances[:5], 1):
+                page_num = appearance.page_index + 1  # Convert 0-indexed to 1-indexed
+                volume_name = appearance.volume_name or "Unknown Volume"
+                sentence = appearance.sentence_text[:50]  # Show first 50 chars
+                context_lines.append(
+                    f"{i}. {volume_name}, Page {page_num}:\n"
+                    f"   \"{sentence}{'...' if len(appearance.sentence_text) > 50 else ''}\""
+                )
+            
+            more_text = f"\n... and {len(appearances) - 5} more occurrences" if len(appearances) > 5 else ""
+            
+            self.main_window.show_info(
+                "Word Appearances",
+                f"Found {len(appearances)} occurrence(s) of this word:\n\n" +
+                "\n".join(context_lines) + more_text
+            )
+            
+            # TODO: In future iteration, allow clicking to navigate to specific occurrence
+            # TODO: Create a proper WordContextDialog with searchable/sortable list
+        except Exception as e:
+            self.main_window.show_error(
+                "Context Lookup Failed",
+                f"Could not retrieve word appearances: {e}"
+            )

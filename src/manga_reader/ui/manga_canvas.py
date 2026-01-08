@@ -71,6 +71,8 @@ class MangaCanvas(QWidget):
     word_clicked = Signal(str, str, int, int)  # lemma, surface, mouse_x, mouse_y
     # Signal emitted when user wants to track a word
     track_word_requested = Signal(str, str, str)  # lemma, reading, part_of_speech
+    # Signal emitted when user wants to view all appearances of a tracked word
+    view_word_context_requested = Signal(int)  # word_id
     
     def __init__(self, morphology_service: Optional[MorphologyService] = None):
         super().__init__()

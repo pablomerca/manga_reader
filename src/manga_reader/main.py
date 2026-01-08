@@ -54,6 +54,7 @@ def main():
     main_window.set_controller(controller)
     canvas.word_clicked.connect(controller.handle_word_clicked)
     canvas.track_word_requested.connect(controller.handle_track_word)
+    canvas.view_word_context_requested.connect(controller.handle_view_word_context)
     
     # 6. Show UI and start event loop
     main_window.show()
