@@ -78,6 +78,19 @@ export class ChannelBridge {
     }
 
     /**
+     * Track word in vocabulary database.
+     * 
+     * @param {string} lemma - Dictionary base form
+     * @param {string} reading - Kana reading
+     * @param {string} partOfSpeech - Part of speech tag
+     */
+    trackWord(lemma, reading, partOfSpeech) {
+        if (this.connector && typeof this.connector.trackWord === "function") {
+            this.connector.trackWord(lemma, reading, partOfSpeech, () => {});
+        }
+    }
+
+    /**
      * Get the raw connector object for custom operations.
      * 
      * @returns {Object|null} The QWebChannel connector object

@@ -211,3 +211,83 @@ class ReaderController(QObject):
         }
 
         self.canvas.show_dictionary_popup(payload)
+
+    @Slot(str, str, str)
+    def handle_track_word(self, lemma: str, reading: str, part_of_speech: str):
+        """
+        Handle tracking a word from the dictionary popup.
+        
+        Args:
+            lemma: The dictionary base form
+            reading: The kana reading
+            part_of_speech: POS tag (e.g., "Noun", "Verb")
+        """
+        if self.current_volume is None:
+            self.main_window.show_error(
+                "No Volume Open",
+                "Please open a manga volume before tracking words."
+            )
+            return
+
+        current_page = self.current_volume.get_page(self.current_page_number)
+        if not current_page:
+            return
+
+        # For MVP, use placeholder coordinates and sentence
+        # TODO: Get actual block coordinates and sentence from canvas selection
+        crop_coords = {"x": 0, "y": 0, "width": 100, "height": 50}
+        sentence = current_page.get_all_text()[:100]  # First 100 chars as context
+
+        try:
+            word, appearance = self.vocabulary_service.track_word(
+                lemma=lemma,
+                reading=reading,
+                part_of_speech=part_of_speech,
+                volume_path=self.current_volume.volume_path,
+                page_index=self.current_page_number,
+                crop_coordinates=crop_coords,
+                sentence_text=sentence,
+            )
+            
+            self.main_window.show_info(
+                "Word Tracked",
+                f"Added '{lemma}' to your vocabulary!\n"
+                f"Reading: {reading}\n"
+                f"Type: {part_of_speech}"
+            )
+        except Exception as e:
+            self.main_window.show_error(
+                "Tracking Failed",
+                f"Could not track word: {e}"
+            )
+
+    @Slot()
+    def handle_open_vocabulary_list(self):
+        """Handle request to open the vocabulary manager window."""
+        try:
+            tracked_words = self.vocabulary_service.list_tracked_words()
+            
+            # For MVP, show simple message with count
+            # TODO: Create proper VocabularyManager dialog
+            if not tracked_words:
+                self.main_window.show_info(
+                    "Vocabulary List",
+                    "You haven't tracked any words yet.\n\n"
+                    "Click on a word in the manga and use the 'Track' button."
+                )
+            else:
+                word_list = "\n".join(
+                    f"• {w.lemma} ({w.reading}) - {w.part_of_speech}"
+                    for w in tracked_words[:10]
+                )
+                more_text = f"\n... and {len(tracked_words) - 10} more" if len(tracked_words) > 10 else ""
+                
+                self.main_window.show_info(
+                    "Vocabulary List",
+                    f"You have tracked {len(tracked_words)} word(s):\n\n{word_list}{more_text}"
+                )
+        except Exception as e:
+            self.main_window.show_error(
+                "List Failed",
+                f"Could not retrieve vocabulary list: {e}"
+            )

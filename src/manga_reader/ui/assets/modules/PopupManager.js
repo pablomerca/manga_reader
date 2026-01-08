@@ -5,10 +5,12 @@
  * Depends on TextFormatter for HTML escaping.
  */
 export class PopupManager {
-    constructor(containerEl, textFormatter) {
+    constructor(containerEl, textFormatter, channel) {
         this.containerEl = containerEl;
         this.textFormatter = textFormatter;
+        this.channel = channel; // QWebChannel bridge for Python communication
         this.popupEl = null;
+        this.currentPayload = null; // Store current word data for actions
     }
 
     /**
@@ -22,11 +24,15 @@ export class PopupManager {
         // Remove existing popup if any
         this.hide();
 
+        this.currentPayload = payload; // Store for action handlers
         const popup = this.createPopupElement(payload);
         this.positionPopup(popup, payload.mouseX || 0, payload.mouseY || 0);
         
         this.containerEl.appendChild(popup);
         this.popupEl = popup;
+        
+        // Wire up action button handlers
+        this.attachEventHandlers();
     }
 
     /**
@@ -36,6 +42,7 @@ export class PopupManager {
         if (!this.popupEl) return;
         this.popupEl.remove();
         this.popupEl = null;
+        this.currentPayload = null;
     }
 
     /**
@@ -77,6 +84,7 @@ export class PopupManager {
 
         let sensesHtml = "";
         if (!notFound && senses.length > 0) {
+            // TODO: refactor map, extract method
             sensesHtml = senses
                 .map((sense, idx) => {
                     const glosses = Array.isArray(sense.glosses) 
@@ -91,7 +99,17 @@ export class PopupManager {
             sensesHtml = `<div class="dict-empty">No definition found.</div>`;
         }
 
-        popup.innerHTML = `${header}<div class="dict-body">${sensesHtml}</div>`;
+        // Action buttons (only show Track button if word was found)
+        let actionsHtml = "";
+        if (!notFound) {
+            actionsHtml = `
+                <div class="dict-actions">
+                    <button class="dict-btn dict-btn-track" data-action="track">+ Track Word</button>
+                </div>
+            `;
+        }
+
+        popup.innerHTML = `${header}<div class="dict-body">${sensesHtml}</div>${actionsHtml}`;
         return popup;
     }
 
@@ -142,4 +160,46 @@ export class PopupManager {
     clamp(value, min, max) {
         return Math.min(Math.max(value, min), max);
     }
+
+    /**
+     * Attach event handlers to action buttons in popup.
+     * 
+     * @private
+     */
+    attachEventHandlers() {
+        if (!this.popupEl) return;
+
+        const trackBtn = this.popupEl.querySelector('[data-action="track"]');
+        if (trackBtn) {
+            trackBtn.addEventListener('click', () => this.handleTrackWord());
+        }
+    }
+
+    /**
+     * Handle track word button click.
+     * 
+     * @private
+     */
+    handleTrackWord() {
+        if (!this.currentPayload || !this.channel) return;
+
+        const payload = this.currentPayload;
+        // Extract lemma from surface (for MVP, use surface as lemma)
+        // In production, this should come from morphology service
+        const lemma = payload.surface || "";
+        const reading = payload.reading || "";
+        // Extract POS from first sense if available
+        let partOfSpeech = "Unknown";
+        if (payload.senses && payload.senses.length > 0 && payload.senses[0].pos) {
+            partOfSpeech = Array.isArray(payload.senses[0].pos) 
+                ? payload.senses[0].pos[0] || "Unknown"
+                : String(payload.senses[0].pos);
+        }
+
+        // Call Python handler via QWebChannel
+        if (this.channel.trackWord) {
+            this.channel.trackWord(lemma, reading, partOfSpeech);
+        }
+    }
 }
+

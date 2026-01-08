@@ -41,7 +41,7 @@ class MangaViewer {
         this.panController = new PanController(this.viewportEl);
         this.layoutManager = new LayoutManager(this.viewportEl, this.wrapperEl);
         this.pageRenderer = new PageRenderer(this.textFormatter);
-        this.popupManager = new PopupManager(this.viewportEl, this.textFormatter);
+        this.popupManager = new PopupManager(this.viewportEl, this.textFormatter, this.channelBridge);
 
         // Initialize event router with callbacks
         this.eventRouter = new EventRouter(this.viewportEl, {

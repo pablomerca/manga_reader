@@ -27,6 +27,8 @@ class WebConnector(QObject):
     navigationSignal = Signal(str)  # "next" | "prev"
     # Signal to notify Python that a word was clicked (noun, verb, adjective, etc.)
     wordClickedSignal = Signal(str, str, int, int)  # lemma, surface, x, y
+    # Signal to notify Python that user wants to track a word
+    trackWordSignal = Signal(str, str, str)  # lemma, reading, part_of_speech
 
     def __init__(self):
         super().__init__()
@@ -51,6 +53,12 @@ class WebConnector(QObject):
         print(f"DEBUG: Python received word click: lemma='{lemma}', surface='{surface}', x={mouse_x}, y={mouse_y}")
         self.wordClickedSignal.emit(lemma, surface, mouse_x, mouse_y)
 
+    @Slot(str, str, str)
+    def trackWord(self, lemma: str, reading: str, part_of_speech: str):
+        """Called from JS when user clicks Track Word button in popup."""
+        print(f"DEBUG: Python received track word: lemma='{lemma}', reading='{reading}', pos='{part_of_speech}'")
+        self.trackWordSignal.emit(lemma, reading, part_of_speech)
+
 
 class MangaCanvas(QWidget):
     """Renders manga JPEG with vertical Japanese text overlays using QWebEngineView."""
@@ -61,6 +69,8 @@ class MangaCanvas(QWidget):
     navigation_requested = Signal(str) # "next" or "prev"
     # Signal emitted when user clicks on a word (noun, verb, adjective, etc.)
     word_clicked = Signal(str, str, int, int)  # lemma, surface, mouse_x, mouse_y
+    # Signal emitted when user wants to track a word
+    track_word_requested = Signal(str, str, str)  # lemma, reading, part_of_speech
     
     def __init__(self, morphology_service: Optional[MorphologyService] = None):
         super().__init__()
@@ -93,6 +103,8 @@ class MangaCanvas(QWidget):
         self.bridge.navigationSignal.connect(self.navigation_requested)
         # Forward word click requests to canvas signal
         self.bridge.wordClickedSignal.connect(self.word_clicked)
+        # Forward track word requests to canvas signal
+        self.bridge.trackWordSignal.connect(self.track_word_requested)
         
         layout.addWidget(self.web_view)
         

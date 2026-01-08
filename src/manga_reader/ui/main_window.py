@@ -5,6 +5,13 @@ from typing import override
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QKeyEvent
+"""Main Window - Application shell with menus and toolbar."""
+
+from pathlib import Path
+from typing import override
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction, QActionGroup, QKeyEvent
 from PySide6.QtWidgets import (
     QFileDialog,
     QMainWindow,
@@ -24,6 +31,8 @@ class MainWindow(QMainWindow):
     previous_page = Signal()
     # Signal emitted when view mode changes
     view_mode_changed = Signal(str)  # "single" or "double"
+    # Signal emitted when user wants to open vocabulary list
+    open_vocabulary_requested = Signal()
     
     def __init__(self):
         super().__init__()
@@ -85,10 +94,23 @@ class MainWindow(QMainWindow):
         double_page_action.triggered.connect(lambda: self._on_view_mode_changed("double"))
         view_mode_group.addAction(double_page_action)
         view_menu.addAction(double_page_action)
+        
+        # Dictionary menu
+        dictionary_menu = menu_bar.addMenu("&Dictionary")
+        
+        # Open Vocabulary action
+        open_vocab_action = QAction("Open &Vocabulary List", self)
+        open_vocab_action.setShortcut("Ctrl+V")
+        open_vocab_action.triggered.connect(self._on_open_vocabulary)
+        dictionary_menu.addAction(open_vocab_action)
     
     def _on_view_mode_changed(self, mode: str):
         """Handle view mode change."""
         self.view_mode_changed.emit(mode)
+    
+    def _on_open_vocabulary(self):
+        """Handle the Open Vocabulary menu action."""
+        self.open_vocabulary_requested.emit()
     
     def _on_open_volume(self):
         """Handle the Open Volume menu action."""
@@ -115,6 +137,7 @@ class MainWindow(QMainWindow):
             # Emit signal with the selected path
             self.volume_opened.emit(volume_path)
     
+    # TODO: eliminate setter by wiring in constructor
     def set_canvas(self, canvas):
         """Set the manga canvas widget in the main layout."""
         self.main_layout.addWidget(canvas)
@@ -130,6 +153,7 @@ class MainWindow(QMainWindow):
         elif direction == "prev":
             self.previous_page.emit()
     
+    # TODO: eliminate setter 
     def set_controller(self, controller):
         """Inject the controller and wire UI signals to its slots.
         
@@ -139,6 +163,7 @@ class MainWindow(QMainWindow):
         - next_page()
         - previous_page()
         - handle_view_mode_changed(str)
+        - handle_open_vocabulary_list()
         """
         self._controller = controller
         # Signal wiring
@@ -146,6 +171,7 @@ class MainWindow(QMainWindow):
         self.next_page.connect(controller.next_page)
         self.previous_page.connect(controller.previous_page)
         self.view_mode_changed.connect(controller.handle_view_mode_changed)
+        self.open_vocabulary_requested.connect(controller.handle_open_vocabulary_list)
     
     def show_error(self, title: str, message: str):
         """Display an error message to the user."""

@@ -107,8 +107,10 @@ body {
     width: 360px;
     max-height: 240px;
     box-sizing: border-box;
-    overflow: hidden;
     backdrop-filter: blur(4px);
+    /* Ensure action bar remains visible while content scrolls */
+    display: flex;
+    flex-direction: column;
 }
 
 .dict-header {
@@ -130,12 +132,47 @@ body {
 }
 
 .dict-body {
-    max-height: 160px;
+    /* Take remaining vertical space and scroll internally */
+    flex: 1 1 auto;
+    min-height: 60px;
     overflow-y: auto;
     padding-right: 6px;
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+/* Actions pinned at the bottom, always visible */
+.dict-actions {
+    margin-top: 8px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.dict-btn {
+    font-size: 12px;
+    line-height: 1;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid #2a3a46;
+    background: #1a2430;
+    color: #e7edf5;
+}
+
+.dict-btn:hover {
+    background: #223243;
+}
+
+.dict-btn-track {
+    border-color: #2c4d2f;
+    background: #1e2f22;
+}
+
+.dict-btn-track:hover {
+    background: #26472b;
 }
 
 .dict-sense-title {
