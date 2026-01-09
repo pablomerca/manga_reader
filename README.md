@@ -1,82 +1,92 @@
 # Manga Reader
 
-A Linux desktop vocabulary companion for intermediate Japanese learners.
+A Linux desktop manga reader and vocabulary companion for Japanese learners. It renders Mokuro OCR overlays, surfaces dictionary definitions, and tracks vocabulary with contextual recall.
 
-## Installation
+## Quick Start
 
-1. Create and activate a virtual environment:
+1) Create and activate a virtualenv
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-2. Install the package in editable mode with dependencies:
+2) Install in editable mode
 ```bash
 pip install -e .
 ```
 
-## Running the Application
-
-### From the command line (after installation):
+3) Run the app
 ```bash
-manga-reader
-```
-
-### Or directly with Python:
-```bash
+manga-reader           # after install
+# or
 python -m manga_reader.main
-```
-
-### Or from the repository root:
-```bash
+# or
 python src/manga_reader/main.py
 ```
 
-## Usage
+## How to Use
 
-1. Launch the application
-2. Click **File → Open Volume** (or press `Ctrl+O`)
-3. Select a folder containing:
-   - A `.mokuro` file (Mokuro OCR JSON output)
-   - Corresponding JPEG images of manga pages
+1) Launch the app
+2) File → Open Volume (Ctrl+O) and choose a folder containing:
+   - A `.mokuro` JSON file (Mokuro OCR output)
+   - The matching page images (JPEG)
+3) Read with overlays. Click a word to open the dictionary popup.
+4) Track a word from the popup, then click **View Context** to see all occurrences in the right-side panel.
+5) Navigate pages with the left/right arrow keys (RTL semantics: Left = next, Right = previous) and switch single/double page view from the View menu.
 
-The application will load the volume and display the first page with text overlays.
+## Current Features (Iteration 6)
 
-## Current Features (MVP - Iteration 1)
+- Volume loading: validate Mokuro JSON, resolve page images, load full volume
+- Page rendering: OCR overlays with word-level metadata (lemma/surface) and noun highlighting
+- Navigation: single/double page modes with RTL keyboard navigation
+- Dictionary popup: inline definitions on word click (Jamdict-backed stub)
+- Vocabulary tracking: SQLite-backed tracking with idempotent upserts and morphology-based lemma/reading
+- Context panel: split-view panel listing all appearances of a tracked word; click to jump to that page
+- State orchestration: centralized in `ReaderController` with signal/slot wiring in `main.py`
 
-- ✅ Open and load Mokuro-processed manga volumes
-- ✅ Display manga pages with OCR text overlays
-- ✅ Parse and validate Mokuro JSON structure
-- ✅ Basic page navigation state management
+## Architecture (Layered)
 
-## Coming Soon
-
-- Page navigation (next/previous, keyboard shortcuts)
-- Dictionary lookups on text click
-- Vocabulary tracking
-- Contextual recall (jump to prior appearances)
-- Anki export
+- `core/` — Domain entities (`MangaVolume`, `MangaPage`, `OCRBlock`, vocabulary entities). Pure Python, no UI imports.
+- `io/` — Data access (`VolumeIngestor`, `DatabaseManager`). Parses Mokuro JSON, manages SQLite schema & CRUD.
+- `services/` — Application services (`MorphologyService`, `DictionaryService`, `VocabularyService`).
+- `ui/` — Widgets (`MainWindow`, `MangaCanvas`, `WordContextPanel`) plus web assets (`viewer.html/js/css`).
+- `coordinators/` — `ReaderController` orchestrates state and routes signals between layers.
+- `main.py` — Composition root: builds all components, wires dependencies, connects signals.
 
 ## Project Structure
 
 ```
-manga_reader/
-├── src/
-│   └── manga_reader/
-│       ├── core/           # Domain entities (MangaVolume, MangaPage, OCRBlock)
-│       ├── io/             # Data access (VolumeIngestor)
-│       ├── ui/             # PySide6 UI components (MainWindow, MangaCanvas)
-│       ├── coordinators/   # Application logic (ReaderController)
-│       └── main.py         # Application entry point
-└── tests/                  # Test suite
+src/manga_reader/
+├── core/              # Domain entities (no UI deps)
+├── io/                # Volume ingestor, SQLite database manager
+├── services/          # Morphology, dictionary, vocabulary services
+├── ui/                # PySide6 widgets and web assets (QWebEngineView)
+├── coordinators/      # ReaderController (mediator)
+└── main.py            # Composition root / entry point
+tests/                 # Pytest suite (mirrors src/)
+docs/                  # Architecture notes and specs
 ```
+
+## Development
+
+- Run tests: `pytest`
+- Lint/format (if configured): `ruff check src/ tests/`, `black src/ tests/`
+- Sample data: `testVol/`, `testVol2/` contain Mokuro fixtures
 
 ## Requirements
 
-- Python 3.9+
-- PySide6 (Qt for Python)
-- Linux (Ubuntu/Pop!_OS recommended)
-- Mokuro-processed manga volumes
+- Python 3.10+
+- PySide6
+- Linux desktop (tested on Ubuntu/Pop!_OS)
+- Mokuro-processed manga volumes (JSON + JPEGs)
+
+## Roadmap / Upcoming
+
+- Vocabulary manager modal (list + search tracked words)
+- UX polish for dictionary popup (spacing, accessibility)
+- Better capture of block coordinates/sentences when tracking from canvas selection
+- Double-page rendering polish and zoom/pan refinements
+- Optional Anki / TSV export of tracked vocabulary
 
 ## License
 

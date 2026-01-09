@@ -334,6 +334,7 @@ class ReaderController(QObject):
                 f"Could not retrieve vocabulary list: {e}"
             )
 
+    # TODO: make more efficient
     @Slot(int)
     def handle_view_word_context(self, word_id: int):
         """
