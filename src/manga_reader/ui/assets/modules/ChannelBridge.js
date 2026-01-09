@@ -91,6 +91,17 @@ export class ChannelBridge {
     }
 
     /**
+     * View context (appearances) of a tracked word.
+     * 
+     * @param {string} lemma - Dictionary base form
+     */
+    viewWordContext(lemma) {
+        if (this.connector && typeof this.connector.viewWordContext === "function") {
+            this.connector.viewWordContext(lemma, () => {});
+        }
+    }
+
+    /**
      * Get the raw connector object for custom operations.
      * 
      * @returns {Object|null} The QWebChannel connector object

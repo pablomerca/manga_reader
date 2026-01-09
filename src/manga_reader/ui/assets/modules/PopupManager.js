@@ -79,8 +79,14 @@ export class PopupManager {
         const safeReading = this.textFormatter.escapeHtml(payload.reading || "");
         const senses = Array.isArray(payload.senses) ? payload.senses : [];
         const notFound = Boolean(payload.notFound);
+        const isTracked = Boolean(payload.isTracked);
 
-        const header = `<div class="dict-header"><div class="dict-surface">${safeSurface}</div><div class="dict-reading">${safeReading}</div></div>`;
+        // Header with tracked indicator
+        let trackedBadge = "";
+        if (isTracked) {
+            trackedBadge = '<span class="dict-tracked-badge">✓ Tracked</span>';
+        }
+        const header = `<div class="dict-header"><div class="dict-surface">${safeSurface}</div><div class="dict-reading">${safeReading}${trackedBadge}</div></div>`;
 
         let sensesHtml = "";
         if (!notFound && senses.length > 0) {
@@ -99,12 +105,21 @@ export class PopupManager {
             sensesHtml = `<div class="dict-empty">No definition found.</div>`;
         }
 
-        // Action buttons (only show Track button if word was found)
+        // Action buttons: Track (if not tracked) and View Context (if tracked)
         let actionsHtml = "";
         if (!notFound) {
+            let trackBtn = isTracked 
+                ? '<button class="dict-btn dict-btn-tracked" disabled>✓ Tracked</button>'
+                : '<button class="dict-btn dict-btn-track" data-action="track">+ Track Word</button>';
+            
+            let contextBtn = isTracked
+                ? '<button class="dict-btn dict-btn-context" data-action="view-context">📋 View Context</button>'
+                : '';
+            
             actionsHtml = `
                 <div class="dict-actions">
-                    <button class="dict-btn dict-btn-track" data-action="track">+ Track Word</button>
+                    ${trackBtn}
+                    ${contextBtn}
                 </div>
             `;
         }
@@ -173,6 +188,11 @@ export class PopupManager {
         if (trackBtn) {
             trackBtn.addEventListener('click', () => this.handleTrackWord());
         }
+        
+        const contextBtn = this.popupEl.querySelector('[data-action="view-context"]');
+        if (contextBtn) {
+            contextBtn.addEventListener('click', () => this.handleViewContext());
+        }
     }
 
     /**
@@ -200,6 +220,21 @@ export class PopupManager {
         if (this.channel.trackWord) {
             this.channel.trackWord(lemma, reading, partOfSpeech);
         }
+    }
+
+    /**
+     * Handle view context button click.
+     * 
+     * @private
+     */
+    handleViewContext() {
+        if (!this.currentPayload || !this.channel) return;
+
+        const payload = this.currentPayload;
+        const lemma = payload.lemma || payload.surface || "";
+
+        // Call Python handler via ChannelBridge
+        this.channel.viewWordContext(lemma);
     }
 }
 

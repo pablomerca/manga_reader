@@ -58,6 +58,7 @@ def main():
     canvas.word_clicked.connect(controller.handle_word_clicked)
     canvas.track_word_requested.connect(controller.handle_track_word)
     canvas.view_word_context_requested.connect(controller.handle_view_word_context)
+    canvas.view_context_by_lemma_requested.connect(controller.handle_view_context_by_lemma)
     
     # 6. Show UI and start event loop
     main_window.show()

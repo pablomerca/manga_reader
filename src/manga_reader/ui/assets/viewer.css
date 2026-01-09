@@ -129,6 +129,23 @@ body {
 .dict-reading {
     font-size: 14px;
     color: #9fb3c9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.dict-tracked-badge {
+    background: #2c4d2f;
+    color: #7fd78f;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border: 1px solid #3d6541;
+    flex-shrink: 0;
 }
 
 .dict-body {
@@ -166,6 +183,11 @@ body {
     background: #223243;
 }
 
+.dict-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 .dict-btn-track {
     border-color: #2c4d2f;
     background: #1e2f22;
@@ -173,6 +195,22 @@ body {
 
 .dict-btn-track:hover {
     background: #26472b;
+}
+
+.dict-btn-tracked {
+    border-color: #3d6541;
+    background: #2c4d2f;
+    color: #7fd78f;
+}
+
+.dict-btn-context {
+    border-color: #3d5c7a;
+    background: #1f3c52;
+    color: #6eb7ff;
+}
+
+.dict-btn-context:hover {
+    background: #265274;
 }
 
 .dict-sense-title {

@@ -24,6 +24,19 @@ class VocabularyService:
     def list_appearances(self, word_id: int) -> List[WordAppearance]:
         return self._db.list_appearances_for_word(word_id)
 
+    #TODO: make more efficient
+    def is_word_tracked(self, lemma: str) -> bool:
+        """Check if a word is already tracked by lemma.
+        
+        Args:
+            lemma: The dictionary base form to check
+            
+        Returns:
+            True if the word is in vocabulary, False otherwise
+        """
+        tracked_words = self.list_tracked_words()
+        return any(w.lemma == lemma for w in tracked_words)
+
     def track_word(
         self,
         lemma: str,

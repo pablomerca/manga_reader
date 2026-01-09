@@ -205,6 +205,9 @@ class ReaderController(QObject):
             return
 
         entry = self.dictionary_service.lookup(lemma, surface)
+        
+        # Check if word is already tracked
+        is_tracked = self.vocabulary_service.is_word_tracked(lemma)
 
         payload = {
             "surface": surface or lemma,
@@ -216,6 +219,8 @@ class ReaderController(QObject):
             "mouseX": mouse_x,
             "mouseY": mouse_y,
             "notFound": entry is None,
+            "isTracked": is_tracked,
+            "lemma": lemma,
         }
 
         self.canvas.show_dictionary_popup(payload)
@@ -267,6 +272,35 @@ class ReaderController(QObject):
             self.main_window.show_error(
                 "Tracking Failed",
                 f"Could not track word: {e}"
+            )
+
+    @Slot(str)
+    def handle_view_context_by_lemma(self, lemma: str):
+        """
+        Handle View Context button click from dictionary popup.
+        Find the word by lemma and display its appearances.
+        
+        Args:
+            lemma: The dictionary base form of the word
+        """
+        try:
+            # Find the tracked word by lemma
+            tracked_words = self.vocabulary_service.list_tracked_words()
+            tracked_word = next((w for w in tracked_words if w.lemma == lemma), None)
+            
+            if not tracked_word:
+                self.main_window.show_error(
+                    "Word Not Tracked",
+                    f"'{lemma}' is not yet tracked. Please track it first."
+                )
+                return
+            
+            # Use the existing handler to show context
+            self.handle_view_word_context(tracked_word.id)
+        except Exception as e:
+            self.main_window.show_error(
+                "Context Lookup Failed",
+                f"Could not retrieve word appearances: {e}"
             )
 
     @Slot()

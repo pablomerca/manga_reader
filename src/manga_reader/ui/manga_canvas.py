@@ -29,6 +29,8 @@ class WebConnector(QObject):
     wordClickedSignal = Signal(str, str, int, int)  # lemma, surface, x, y
     # Signal to notify Python that user wants to track a word
     trackWordSignal = Signal(str, str, str)  # lemma, reading, part_of_speech
+    # Signal to notify Python that user wants to view context of a tracked word
+    viewContextSignal = Signal(str)  # lemma
 
     def __init__(self):
         super().__init__()
@@ -59,6 +61,12 @@ class WebConnector(QObject):
         print(f"DEBUG: Python received track word: lemma='{lemma}', reading='{reading}', pos='{part_of_speech}'")
         self.trackWordSignal.emit(lemma, reading, part_of_speech)
 
+    @Slot(str)
+    def viewWordContext(self, lemma: str):
+        """Called from JS when user clicks View Context button in popup."""
+        print(f"DEBUG: Python received view context: lemma='{lemma}'")
+        self.viewContextSignal.emit(lemma)
+
 
 class MangaCanvas(QWidget):
     """Renders manga JPEG with vertical Japanese text overlays using QWebEngineView."""
@@ -73,6 +81,8 @@ class MangaCanvas(QWidget):
     track_word_requested = Signal(str, str, str)  # lemma, reading, part_of_speech
     # Signal emitted when user wants to view all appearances of a tracked word
     view_word_context_requested = Signal(int)  # word_id
+    # Signal emitted when user clicks View Context button in popup (by lemma)
+    view_context_by_lemma_requested = Signal(str)  # lemma
     
     def __init__(self, morphology_service: Optional[MorphologyService] = None):
         super().__init__()
@@ -107,6 +117,8 @@ class MangaCanvas(QWidget):
         self.bridge.wordClickedSignal.connect(self.word_clicked)
         # Forward track word requests to canvas signal
         self.bridge.trackWordSignal.connect(self.track_word_requested)
+        # Forward view context requests to canvas signal
+        self.bridge.viewContextSignal.connect(self.view_context_by_lemma_requested)
         
         layout.addWidget(self.web_view)
         
