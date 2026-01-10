@@ -188,12 +188,8 @@ class ReaderController(QObject):
         Args:
             mode: Either "single" or "double"
         """
-        new_mode = create_view_mode(mode)
-        if new_mode is None:
-            return
-        
-        # Update mode and re-render
-        self.view_mode = new_mode
+        # Will raise if invalid, surfacing programming errors early
+        self.view_mode = create_view_mode(mode)
         self._render_current_page()
 
     # Slots to handle requests from ContextPanelCoordinator
@@ -205,20 +201,16 @@ class ReaderController(QObject):
     @Slot(str, int)
     def _handle_view_mode_change_request(self, mode_name: str, target_page: int):
         """Handle view mode change request from ContextPanelCoordinator."""
-        new_mode = create_view_mode(mode_name)
-        if new_mode:
-            self.view_mode = new_mode
-            self.current_page_number = target_page
-            self._render_current_page()
+        self.view_mode = create_view_mode(mode_name)
+        self.current_page_number = target_page
+        self._render_current_page()
 
     @Slot(str, int)
     def _handle_restore_view_request(self, mode_name: str, page_number: int):
         """Handle request to restore previous view state."""
-        new_mode = create_view_mode(mode_name)
-        if new_mode:
-            self.view_mode = new_mode
-            self.current_page_number = page_number
-            self._render_current_page()
+        self.view_mode = create_view_mode(mode_name)
+        self.current_page_number = page_number
+        self._render_current_page()
 
     # Word interaction is delegated to WordInteractionCoordinator
 

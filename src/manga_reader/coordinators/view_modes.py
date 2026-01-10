@@ -188,10 +188,14 @@ SINGLE_PAGE_MODE = SinglePageMode()
 DOUBLE_PAGE_MODE = DoublePageMode()
 
 
-def create_view_mode(mode: str) -> ViewMode | None:
-    """Factory returning the appropriate view mode state."""
+def create_view_mode(mode: str) -> ViewMode:
+    """Factory returning the appropriate view mode state.
+
+    Raises:
+        ValueError: If an unknown mode name is provided.
+    """
     if mode == "double":
         return DOUBLE_PAGE_MODE
     if mode == "single":
         return SINGLE_PAGE_MODE
-    return None
+    raise ValueError(f"Unknown view mode: {mode}")

@@ -536,10 +536,13 @@ class TestViewMode:
         assert controller.view_mode.name == "single"
         mock_canvas.render_pages.assert_called()
 
-    def test_invalid_view_mode_ignored(self, controller, sample_volume):
-        """Test that invalid view modes are ignored."""
+    def test_invalid_view_mode_raises(self, controller, sample_volume):
+        """Test that invalid view modes raise a ValueError (fail-fast)."""
         controller.view_mode = SINGLE_PAGE_MODE
-        
-        controller.handle_view_mode_changed("invalid")
-        
+
+        import pytest as _pytest
+        with _pytest.raises(ValueError):
+            controller.handle_view_mode_changed("invalid")
+
+        # State remains unchanged after exception
         assert controller.view_mode.name == "single"
