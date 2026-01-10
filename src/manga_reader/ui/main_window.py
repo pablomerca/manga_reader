@@ -204,6 +204,59 @@ class MainWindow(QMainWindow):
         """Display an information message to the user."""
         QMessageBox.information(self, title, message)
     
+    def show_relocation_dialog(self, volume_title: str, old_path: Path) -> Path:
+        """Display error and prompt user to relocate a volume.
+        
+        Args:
+            volume_title: The title of the volume that couldn't be found.
+            old_path: The invalid path that was stored.
+            
+        Returns:
+            Path: The new valid folder path selected by user.
+            
+        Raises:
+            RuntimeError: If user cancels or selects invalid path.
+        """
+        # Show error message with relocation option
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("Volume Not Found")
+        msg_box.setText(f"The volume '{volume_title}' could not be found at:")
+        msg_box.setInformativeText(str(old_path))
+        msg_box.setStandardButtons(
+            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Ok
+        )
+        relocate_btn = msg_box.button(QMessageBox.StandardButton.Ok)
+        relocate_btn.setText("Relocate...")
+        msg_box.setDefaultButton(relocate_btn)
+        
+        result = msg_box.exec()
+        
+        if result != QMessageBox.StandardButton.Ok:
+            raise RuntimeError("Relocation cancelled by user")
+        
+        # Open folder selection dialog
+        new_folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select New Volume Location",
+            str(old_path.parent) if old_path.parent.exists() else "",
+            QFileDialog.Option.ShowDirsOnly,
+        )
+        
+        if not new_folder:
+            raise RuntimeError("No folder selected")
+        
+        new_path = Path(new_folder)
+        
+        # Validate that the new path has a .mokuro file
+        mokuro_files = list(new_path.glob("*.mokuro"))
+        if not mokuro_files:
+            raise RuntimeError(
+                f"No .mokuro file found in the selected directory:\n{new_path}"
+            )
+        
+        return new_path
+    
     def set_context_panel(self, context_panel):
         """
         Set the word context panel and add it to the split view.

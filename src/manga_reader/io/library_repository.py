@@ -226,6 +226,40 @@ class LibraryRepository:
         except sqlite3.Error as e:
             raise RuntimeError(f"Failed to delete volume: {e}") from e
 
+    def update_folder_path(self, old_path: Path, new_path: Path) -> LibraryVolume:
+        """Update the folder path for a volume (for relocation).
+        
+        Args:
+            old_path: Current (invalid) folder path.
+            new_path: New (valid) folder path.
+            
+        Returns:
+            LibraryVolume: The updated volume entity.
+            
+        Raises:
+            RuntimeError: If volume not found or database write fails.
+        """
+        old_path = Path(old_path).resolve()
+        new_path = Path(new_path).resolve()
+
+        try:
+            cur = self.connection.cursor()
+            cur.execute(
+                """
+                UPDATE library_volumes
+                SET folder_path = ?
+                WHERE folder_path = ?
+                """,
+                (str(new_path), str(old_path)),
+            )
+            if cur.rowcount == 0:
+                raise RuntimeError(f"Volume not found: {old_path}")
+            self.connection.commit()
+        except sqlite3.Error as e:
+            raise RuntimeError(f"Failed to update folder path: {e}") from e
+
+        return self.get_volume_by_path(new_path)
+
     @staticmethod
     def _row_to_library_volume(row: sqlite3.Row) -> LibraryVolume:
         """Convert database row to LibraryVolume entity."""

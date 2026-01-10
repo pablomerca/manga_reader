@@ -119,3 +119,128 @@ def test_library_coordinator_signals_connected():
     assert hasattr(coordinator, "handle_volume_selected")
     assert hasattr(coordinator, "handle_volume_deleted")
     assert hasattr(coordinator, "handle_title_changed")
+
+
+def test_library_coordinator_handle_missing_volume_path(library_repo, tmp_path):
+    """Test handling of volume with missing path triggers relocation dialog."""
+    ensure_qt_app()
+    
+    # Create a mock volume with an invalid path
+    old_path = tmp_path / "old_location"
+    new_path = tmp_path / "new_location"
+    new_path.mkdir()
+    
+    # Create mock .mokuro file in new location
+    (new_path / "test.mokuro").touch()
+    
+    # Add volume to library with old (non-existent) path
+    cover_path = tmp_path / "cover.jpg"
+    cover_path.touch()
+    library_repo.add_volume(
+        title="Test Volume",
+        folder_path=old_path,
+        cover_image_path=cover_path,
+    )
+    
+    # Setup mocks
+    mock_main_window = MagicMock()
+    mock_main_window.show_relocation_dialog.return_value = new_path
+    mock_main_window.volume_opened = MagicMock()
+    mock_main_window.volume_opened.emit = MagicMock()
+    
+    coordinator = LibraryCoordinator(
+        library_screen=LibraryScreen(),
+        library_repository=library_repo,
+        volume_ingestor=MagicMock(),
+        thumbnail_service=MagicMock(),
+        main_window=mock_main_window,
+    )
+    
+    # Trigger handle_volume_selected with invalid path
+    coordinator.handle_volume_selected(old_path)
+    
+    # Verify relocation dialog was shown
+    mock_main_window.show_relocation_dialog.assert_called_once()
+    
+    # Verify success message was shown
+    mock_main_window.show_info.assert_called_once()
+
+
+def test_library_coordinator_handle_missing_mokuro_file(library_repo, tmp_path):
+    """Test handling of volume with path that exists but no .mokuro file."""
+    ensure_qt_app()
+    
+    # Create a directory that exists but has no .mokuro file
+    volume_path = tmp_path / "volume"
+    volume_path.mkdir()
+    
+    # Add volume to library
+    cover_path = tmp_path / "cover.jpg"
+    cover_path.touch()
+    library_repo.add_volume(
+        title="Test Volume",
+        folder_path=volume_path,
+        cover_image_path=cover_path,
+    )
+    
+    # Setup mocks
+    mock_main_window = MagicMock()
+    mock_main_window.show_relocation_dialog.side_effect = RuntimeError("Relocation cancelled by user")
+    
+    coordinator = LibraryCoordinator(
+        library_screen=LibraryScreen(),
+        library_repository=library_repo,
+        volume_ingestor=MagicMock(),
+        thumbnail_service=MagicMock(),
+        main_window=mock_main_window,
+    )
+    
+    # Trigger handle_volume_selected with path missing .mokuro
+    coordinator.handle_volume_selected(volume_path)
+    
+    # Verify relocation dialog was shown
+    mock_main_window.show_relocation_dialog.assert_called_once()
+    
+    # Verify error was shown when relocation cancelled
+    mock_main_window.show_error.assert_called_once()
+
+
+def test_library_coordinator_valid_path_opens_volume(library_repo, tmp_path):
+    """Test that valid path with .mokuro file opens volume."""
+    ensure_qt_app()
+    
+    # Create valid volume with .mokuro file
+    volume_path = tmp_path / "volume"
+    volume_path.mkdir()
+    (volume_path / "test.mokuro").touch()
+    
+    # Add volume to library
+    cover_path = tmp_path / "cover.jpg"
+    cover_path.touch()
+    library_repo.add_volume(
+        title="Test Volume",
+        folder_path=volume_path,
+        cover_image_path=cover_path,
+    )
+    
+    # Setup mocks
+    mock_main_window = MagicMock()
+    mock_main_window.volume_opened = MagicMock()
+    mock_main_window.volume_opened.emit = MagicMock()
+    
+    coordinator = LibraryCoordinator(
+        library_screen=LibraryScreen(),
+        library_repository=library_repo,
+        volume_ingestor=MagicMock(),
+        thumbnail_service=MagicMock(),
+        main_window=mock_main_window,
+    )
+    
+    # Trigger handle_volume_selected with valid path
+    coordinator.handle_volume_selected(volume_path)
+    
+    # Verify relocation dialog was NOT shown
+    mock_main_window.show_relocation_dialog.assert_not_called()
+    
+    # Verify volume_opened signal was emitted
+    mock_main_window.volume_opened.emit.assert_called_once_with(volume_path)

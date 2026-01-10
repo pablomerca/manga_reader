@@ -113,10 +113,24 @@ class LibraryCoordinator(QObject):
     def handle_volume_selected(self, folder_path: Path):
         """Handle when user selects a volume from the library.
         
+        Validates the path exists and has a .mokuro file. If not, prompts
+        for relocation and updates the database with the new path.
+        
         Args:
             folder_path: Path to the selected volume.
         """
-        # Update last_opened timestamp
+        # Validate path exists
+        if not folder_path.exists():
+            self._handle_missing_volume(folder_path)
+            return
+        
+        # Validate .mokuro file exists
+        mokuro_files = list(folder_path.glob("*.mokuro"))
+        if not mokuro_files:
+            self._handle_missing_volume(folder_path)
+            return
+        
+        # Path is valid, update last_opened timestamp
         try:
             self.library_repository.update_last_opened(folder_path)
         except RuntimeError:
@@ -125,6 +139,40 @@ class LibraryCoordinator(QObject):
         
         # Emit signal to open the volume in reader
         self.main_window.volume_opened.emit(folder_path)
+    
+    def _handle_missing_volume(self, old_path: Path):
+        """Handle a volume with an invalid path by prompting for relocation.
+        
+        Args:
+            old_path: The invalid path stored in the database.
+        """
+        # Get volume info for error message
+        try:
+            volume = self.library_repository.get_volume_by_path(old_path)
+            volume_title = volume.title
+        except RuntimeError:
+            volume_title = old_path.name
+        
+        # Show relocation dialog
+        try:
+            new_path = self.main_window.show_relocation_dialog(volume_title, old_path)
+        except RuntimeError as e:
+            # User cancelled or selection was invalid
+            self.main_window.show_error("Relocation Failed", str(e))
+            return
+        
+        # Update database with new path
+        try:
+            self.library_repository.update_folder_path(old_path, new_path)
+            # Reload library to show updated path
+            self._load_and_display_volumes()
+            self.main_window.show_info(
+                "Volume Relocated",
+                f"Successfully relocated '{volume_title}' to:\n{new_path}"
+            )
+        except RuntimeError as e:
+            self.main_window.show_error("Update Failed", str(e))
+
     
     @Slot(Path)
     def handle_volume_deleted(self, folder_path: Path):

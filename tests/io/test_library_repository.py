@@ -268,3 +268,43 @@ def test_library_repository_fails_fast_on_invalid_connection():
     """Test that LibraryRepository raises error on invalid connection."""
     with pytest.raises(RuntimeError, match="Database connection required"):
         LibraryRepository(None)
+
+
+def test_library_repository_update_folder_path(library_repo):
+    """Test updating a volume's folder path (relocation)."""
+    old_path = Path("/test/manga/volume1")
+    new_path = Path("/test/manga/relocated/volume1")
+    cover_path = Path("/cache/cover1.jpg")
+    
+    # Add volume with old path
+    original_volume = library_repo.add_volume(
+        title="Test Volume",
+        folder_path=old_path,
+        cover_image_path=cover_path,
+    )
+    
+    # Update folder path
+    updated_volume = library_repo.update_folder_path(old_path, new_path)
+    
+    # Verify the path was updated
+    assert updated_volume.id == original_volume.id
+    assert updated_volume.title == "Test Volume"
+    assert updated_volume.folder_path == new_path.resolve()
+    assert updated_volume.cover_image_path == cover_path.resolve()
+    
+    # Verify old path no longer exists in database
+    with pytest.raises(RuntimeError, match="Volume not found in library"):
+        library_repo.get_volume_by_path(old_path)
+    
+    # Verify new path retrieves the volume
+    retrieved = library_repo.get_volume_by_path(new_path)
+    assert retrieved.id == original_volume.id
+
+
+def test_library_repository_update_folder_path_not_found(library_repo):
+    """Test that updating path for non-existent volume raises RuntimeError."""
+    old_path = Path("/non/existent/path")
+    new_path = Path("/new/path")
+    
+    with pytest.raises(RuntimeError, match="Volume not found"):
+        library_repo.update_folder_path(old_path, new_path)
