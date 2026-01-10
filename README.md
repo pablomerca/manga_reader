@@ -34,15 +34,15 @@ python src/manga_reader/main.py
 4) Track a word from the popup, then click **View Context** to see all occurrences in the right-side panel.
 5) Navigate pages with the left/right arrow keys (RTL semantics: Left = next, Right = previous) and switch single/double page view from the View menu.
 
-## Current Features (Iteration 6)
+## Current Features
 
 - Volume loading: validate Mokuro JSON, resolve page images, load full volume
 - Page rendering: OCR overlays with word-level metadata (lemma/surface) and noun highlighting
-- Navigation: single/double page modes with RTL keyboard navigation
+- Navigation: single/double page modes with RTL keyboard navigation (arrow keys)
 - Dictionary popup: inline definitions on word click (Jamdict-backed stub)
 - Vocabulary tracking: SQLite-backed tracking with idempotent upserts and morphology-based lemma/reading
 - Context panel: split-view panel listing all appearances of a tracked word; click to jump to that page
-- State orchestration: centralized in `ReaderController` with signal/slot wiring in `main.py`
+- Clean architecture: specialized coordinators handle navigation, word interactions, and context panel lifecycle independently
 
 ## Architecture (Layered)
 
@@ -50,7 +50,10 @@ python src/manga_reader/main.py
 - `io/` — Data access (`VolumeIngestor`, `DatabaseManager`). Parses Mokuro JSON, manages SQLite schema & CRUD.
 - `services/` — Application services (`MorphologyService`, `DictionaryService`, `VocabularyService`).
 - `ui/` — Widgets (`MainWindow`, `MangaCanvas`, `WordContextPanel`) plus web assets (`viewer.html/js/css`).
-- `coordinators/` — `ReaderController` orchestrates state and routes signals between layers.
+- `coordinators/` — Specialized coordinators following single responsibility principle:
+  - `ReaderController` — Session management and page navigation
+  - `WordInteractionCoordinator` — Word clicks, dictionary popup, vocabulary tracking
+  - `ContextPanelCoordinator` — Context panel lifecycle and appearance navigation
 - `main.py` — Composition root: builds all components, wires dependencies, connects signals.
 
 ## Project Structure
@@ -61,9 +64,9 @@ src/manga_reader/
 ├── io/                # Volume ingestor, SQLite database manager
 ├── services/          # Morphology, dictionary, vocabulary services
 ├── ui/                # PySide6 widgets and web assets (QWebEngineView)
-├── coordinators/      # ReaderController (mediator)
+├── coordinators/      # Specialized coordinators (navigation, word interaction, context panel)
 └── main.py            # Composition root / entry point
-tests/                 # Pytest suite (mirrors src/)
+tests/                 # Pytest suite (mirrors src/) - 93 tests
 docs/                  # Architecture notes and specs
 ```
 
