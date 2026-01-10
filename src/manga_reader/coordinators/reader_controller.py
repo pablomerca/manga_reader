@@ -30,14 +30,20 @@ class ReaderController(QObject):
         main_window: MainWindow,
         canvas: MangaCanvas,
         ingestor: VolumeIngestor,
-        word_interaction: WordInteractionCoordinator | None = None,
-        context_coordinator: ContextPanelCoordinator | None = None,
+        word_interaction: WordInteractionCoordinator,
+        context_coordinator: ContextPanelCoordinator,
     ):
         super().__init__()
         
         self.main_window = main_window
         self.canvas = canvas
         self.ingestor = ingestor
+        # Fail fast if essential collaborators are missing
+        if word_interaction is None:
+            raise ValueError("WordInteractionCoordinator must not be None")
+        if context_coordinator is None:
+            raise ValueError("ContextPanelCoordinator must not be None")
+
         self.word_interaction = word_interaction
         self.context_coordinator = context_coordinator
         
@@ -47,11 +53,10 @@ class ReaderController(QObject):
         self.view_mode: ViewMode = SINGLE_PAGE_MODE
         
 
-        # If a context coordinator is provided, wire its requests to handler slots
-        if self.context_coordinator is not None:
-            self.context_coordinator.navigate_to_page_requested.connect(self._handle_navigate_to_page_request)
-            self.context_coordinator.view_mode_change_requested.connect(self._handle_view_mode_change_request)
-            self.context_coordinator.restore_view_requested.connect(self._handle_restore_view_request)
+        # Wire context coordinator requests to handler slots
+        self.context_coordinator.navigate_to_page_requested.connect(self._handle_navigate_to_page_request)
+        self.context_coordinator.view_mode_change_requested.connect(self._handle_view_mode_change_request)
+        self.context_coordinator.restore_view_requested.connect(self._handle_restore_view_request)
     
     @Slot(Path)
     def handle_volume_opened(self, volume_path: Path):
@@ -104,10 +109,8 @@ class ReaderController(QObject):
         if pages_to_render:
             self.canvas.render_pages(pages_to_render)
             # Keep coordinators in sync with current session context
-            if self.word_interaction is not None:
-                self.word_interaction.set_volume_context(self.current_volume, self.current_page_number)
-            if self.context_coordinator is not None:
-                self.context_coordinator.set_session_context(self.current_volume, self.view_mode, self.current_page_number)
+            self.word_interaction.set_volume_context(self.current_volume, self.current_page_number)
+            self.context_coordinator.set_session_context(self.current_volume, self.view_mode, self.current_page_number)
         else:
             self.canvas.hide_dictionary_popup()
 
@@ -123,18 +126,16 @@ class ReaderController(QObject):
         block_id: int = -1,
     ):
         """Delegate word click handling to WordInteractionCoordinator."""
-        if self.word_interaction is not None:
-            self.word_interaction.handle_word_clicked(
-                lemma, surface, mouse_x, mouse_y, page_index, block_id
-            )
+        self.word_interaction.handle_word_clicked(
+            lemma, surface, mouse_x, mouse_y, page_index, block_id
+        )
 
     @Slot(str, str, str)
     def handle_track_word(self, lemma: str, reading: str, part_of_speech: str):
         """Delegate track word handling to WordInteractionCoordinator."""
-        if self.word_interaction is not None:
-            # Ensure coordinator has up-to-date session context
-            self.word_interaction.set_volume_context(self.current_volume, self.current_page_number)
-            self.word_interaction.handle_track_word(lemma, reading, part_of_speech)
+        # Ensure coordinator has up-to-date session context
+        self.word_interaction.set_volume_context(self.current_volume, self.current_page_number)
+        self.word_interaction.handle_track_word(lemma, reading, part_of_speech)
     
     def next_page(self):
         """Navigate to the next page, skipping appropriately in double page mode."""
@@ -224,31 +225,26 @@ class ReaderController(QObject):
     @Slot(str)
     def handle_view_context_by_lemma(self, lemma: str):
         """Delegate to ContextPanelCoordinator if available."""
-        if self.context_coordinator is not None:
-            self.context_coordinator.handle_view_context_by_lemma(lemma)
+        self.context_coordinator.handle_view_context_by_lemma(lemma)
 
     @Slot()
     def handle_open_vocabulary_list(self):
         """Delegate to ContextPanelCoordinator if available."""
-        if self.context_coordinator is not None:
-            self.context_coordinator.handle_open_vocabulary_list()
+        self.context_coordinator.handle_open_vocabulary_list()
 
     # TODO: make more efficient
     @Slot(int)
     def handle_view_word_context(self, word_id: int):
         """Delegate to ContextPanelCoordinator if available."""
-        if self.context_coordinator is not None:
-            self.context_coordinator.handle_view_word_context(word_id)
+        self.context_coordinator.handle_view_word_context(word_id)
     
     @Slot()
     def _on_context_panel_closed(self):
         """Handle when user closes the context panel by delegating to coordinator."""
-        if self.context_coordinator is not None:
-            self.context_coordinator._on_context_panel_closed()
+        self.context_coordinator._on_context_panel_closed()
 
     
     @Slot(int, int, int)
     def _on_appearance_selected(self, word_id: int, appearance_id: int, page_index: int):
         """Forward appearance selection to coordinator."""
-        if self.context_coordinator is not None:
-            self.context_coordinator._on_appearance_selected(word_id, appearance_id, page_index)
+        self.context_coordinator._on_appearance_selected(word_id, appearance_id, page_index)
