@@ -41,6 +41,11 @@ class ReaderController(QObject):
         self.previous_view_mode: str = "single"  # For restoring when context closes
         self.context_panel_active: bool = False  # Track if context panel is open
         
+        # Store context of the last clicked word for tracking
+        self.last_clicked_lemma: str | None = None
+        self.last_clicked_page_index: int | None = None
+        self.last_clicked_block_text: str | None = None  # Text from the block where word was clicked
+        
         # Wire context panel signals
         self.context_panel.closed.connect(self._on_context_panel_closed)
         self.context_panel.appearance_selected.connect(self._on_appearance_selected)
@@ -198,11 +203,40 @@ class ReaderController(QObject):
         # Re-render current page(s) with new mode
         self._render_current_page()
 
-    @Slot(str, str, int, int)
-    def handle_word_clicked(self, lemma: str, surface: str, mouse_x: int, mouse_y: int):
-        """Handle word clicks from the canvas and show dictionary popup."""
+    @Slot(str, str, int, int, int, int)
+    def handle_word_clicked(self, lemma: str, surface: str, mouse_x: int, mouse_y: int, page_index: int = -1, block_id: int = -1):
+        """Handle word clicks from the canvas and show dictionary popup.
+        
+        Stores the block context (page, block text) from where the word was clicked
+        for accurate sentence context when tracking.
+        
+        Args:
+            lemma: The dictionary base form
+            surface: The surface form of the word
+            mouse_x: X coordinate of the click (in viewport coordinates)
+            mouse_y: Y coordinate of the click (in viewport coordinates)
+        """
         if self.dictionary_service is None:
             return
+
+        # Store the context of this clicked word for later use during tracking
+        self.last_clicked_lemma = lemma
+        self.last_clicked_page_index = page_index if page_index >= 0 else self.current_page_number
+        self.last_clicked_block_text = None  # Reset
+        
+        # Find the OCR block using explicit block id (preferred) or coordinates
+        if self.current_volume is not None:
+            current_page = self.current_volume.get_page(self.last_clicked_page_index)
+            if current_page is not None:
+                clicked_block = None
+                # Prefer block id when provided
+                if block_id is not None and block_id >= 0 and block_id < len(current_page.ocr_blocks):
+                    clicked_block = current_page.ocr_blocks[block_id]
+                else:
+                    # Fallback: positional lookup (may be affected by zoom/pan)
+                    clicked_block = current_page.find_block_at_position(mouse_x, mouse_y)
+                if clicked_block is not None:
+                    self.last_clicked_block_text = clicked_block.full_text
 
         entry = self.dictionary_service.lookup(lemma, surface)
         
@@ -230,6 +264,10 @@ class ReaderController(QObject):
         """
         Handle tracking a word from the dictionary popup.
         
+        Uses the stored block context from when the word was clicked to capture
+        the exact dialogue/sentence where the word appears. This ensures accurate
+        contextual information even if the user navigates pages before tracking.
+        
         Args:
             lemma: The dictionary base form
             reading: The kana reading
@@ -242,14 +280,24 @@ class ReaderController(QObject):
             )
             return
 
-        current_page = self.current_volume.get_page(self.current_page_number)
+        # Use the stored page from when the word was clicked, not current page
+        # This ensures we capture context from the correct page even if user navigated
+        page_index = self.last_clicked_page_index if self.last_clicked_page_index is not None else self.current_page_number
+        current_page = self.current_volume.get_page(page_index)
         if not current_page:
             return
 
-        # For MVP, use placeholder coordinates and sentence
-        # TODO: Get actual block coordinates and sentence from canvas selection
+        # Use the stored block text (the actual dialogue where the word was clicked)
+        # This is much more accurate than grabbing arbitrary text from the page
+        if self.last_clicked_block_text:
+            sentence = self.last_clicked_block_text
+        else:
+            # Fallback: if we couldn't find the block, use all page text (shouldn't happen)
+            sentence = current_page.get_all_text()
+
+        # For MVP, use placeholder coordinates
+        # TODO: Capture actual block coordinates from the clicked word's position
         crop_coords = {"x": 0, "y": 0, "width": 100, "height": 50}
-        sentence = current_page.get_all_text()[:100]  # First 100 chars as context
 
         try:
             word, appearance = self.vocabulary_service.track_word(
@@ -257,7 +305,7 @@ class ReaderController(QObject):
                 reading=reading,
                 part_of_speech=part_of_speech,
                 volume_path=self.current_volume.volume_path,
-                page_index=self.current_page_number,
+                page_index=page_index,
                 crop_coordinates=crop_coords,
                 sentence_text=sentence,
             )

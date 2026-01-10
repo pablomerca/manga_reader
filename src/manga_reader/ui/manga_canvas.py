@@ -26,7 +26,7 @@ class WebConnector(QObject):
     blockClickedSignal = Signal(int, int)  # id, ? might pass ID or metadata
     navigationSignal = Signal(str)  # "next" | "prev"
     # Signal to notify Python that a word was clicked (noun, verb, adjective, etc.)
-    wordClickedSignal = Signal(str, str, int, int)  # lemma, surface, x, y
+    wordClickedSignal = Signal(str, str, int, int, int, int)  # lemma, surface, x, y, page_index, block_id
     # Signal to notify Python that user wants to track a word
     trackWordSignal = Signal(str, str, str)  # lemma, reading, part_of_speech
     # Signal to notify Python that user wants to view context of a tracked word
@@ -49,11 +49,11 @@ class WebConnector(QObject):
         """Called from JS to request navigation (left/right arrows)."""
         self.navigationSignal.emit(direction)
 
-    @Slot(str, str, int, int)
-    def requestWordLookup(self, lemma: str, surface: str, mouse_x: int, mouse_y: int):
+    @Slot(str, str, int, int, int, int)
+    def requestWordLookup(self, lemma: str, surface: str, mouse_x: int, mouse_y: int, page_index: int, block_id: int):
         """Called from JS when a word span is clicked."""
-        print(f"DEBUG: Python received word click: lemma='{lemma}', surface='{surface}', x={mouse_x}, y={mouse_y}")
-        self.wordClickedSignal.emit(lemma, surface, mouse_x, mouse_y)
+        print(f"DEBUG: Python received word click: lemma='{lemma}', surface='{surface}', x={mouse_x}, y={mouse_y}, page_index={page_index}, block_id={block_id}")
+        self.wordClickedSignal.emit(lemma, surface, mouse_x, mouse_y, page_index, block_id)
 
     @Slot(str, str, str)
     def trackWord(self, lemma: str, reading: str, part_of_speech: str):
@@ -76,7 +76,7 @@ class MangaCanvas(QWidget):
     # Signal emitted for navigation (preventing browser scroll)
     navigation_requested = Signal(str) # "next" or "prev"
     # Signal emitted when user clicks on a word (noun, verb, adjective, etc.)
-    word_clicked = Signal(str, str, int, int)  # lemma, surface, mouse_x, mouse_y
+    word_clicked = Signal(str, str, int, int, int, int)  # lemma, surface, mouse_x, mouse_y, page_index, block_id
     # Signal emitted when user wants to track a word
     track_word_requested = Signal(str, str, str)  # lemma, reading, part_of_speech
     # Signal emitted when user wants to view all appearances of a tracked word
@@ -234,6 +234,7 @@ class MangaCanvas(QWidget):
             "imageUrl": QUrl.fromLocalFile(str(page.image_path)).toString(),
             "width": page.width,
             "height": page.height,
+            "pageIndex": page.page_number,
             "blocks": blocks_data
         }
     

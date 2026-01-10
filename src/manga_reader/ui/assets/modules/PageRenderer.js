@@ -54,6 +54,7 @@ export class PageRenderer {
     createBlockElement(block) {
         const el = document.createElement("div");
         el.className = "ocr-block";
+        el.dataset.blockId = String(block.id);
         el.style.left = block.x + "px";
         el.style.top = block.y + "px";
         el.style.width = block.width + "px";

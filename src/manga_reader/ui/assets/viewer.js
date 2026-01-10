@@ -100,10 +100,16 @@ class MangaViewer {
         const surface = wordSpan.textContent;
         const rect = wordSpan.getBoundingClientRect();
 
+        // Find the block and page containers for precise context
+        const blockEl = wordSpan.closest(".ocr-block");
+        const blockId = blockEl ? parseInt(blockEl.dataset.blockId || "-1", 10) : -1;
+        const pageEl = wordSpan.closest(".page-container");
+        const pageIndex = pageEl ? parseInt(pageEl.dataset.pageIndex || "-1", 10) : -1;
+
         console.log(`[JS] Word clicked: lemma="${lemma}", surface="${surface}", x=${rect.x}, y=${rect.y}`);
 
         // Emit signal to Python via ChannelBridge
-        this.channelBridge.requestWordLookup(lemma, surface, rect.x, rect.y);
+        this.channelBridge.requestWordLookup(lemma, surface, rect.x, rect.y, pageIndex, blockId);
     }
 
     // Entry point called from Python
@@ -133,6 +139,9 @@ class MangaViewer {
 
         pages.forEach((page, index) => {
             const pageEl = this.pageRenderer.createPageElement(page);
+            if (typeof page.pageIndex === "number") {
+                pageEl.dataset.pageIndex = String(page.pageIndex);
+            }
             this.wrapperEl.appendChild(pageEl);
 
             totalWidth += page.width;

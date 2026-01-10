@@ -49,9 +49,9 @@ export class ChannelBridge {
      * @param {number} x - Click X coordinate
      * @param {number} y - Click Y coordinate
      */
-    requestWordLookup(lemma, surface, x, y) {
+    requestWordLookup(lemma, surface, x, y, pageIndex, blockId) {
         if (this.connector && typeof this.connector.requestWordLookup === "function") {
-            this.connector.requestWordLookup(lemma, surface, x, y, () => {});
+            this.connector.requestWordLookup(lemma, surface, x, y, pageIndex, blockId, () => {});
         }
     }
 
