@@ -35,6 +35,8 @@ class MainWindow(QMainWindow):
     view_mode_changed = Signal(str)  # "single" or "double"
     # Signal emitted when user wants to open vocabulary list
     open_vocabulary_requested = Signal()
+    # Signal emitted when user wants to return to library
+    return_to_library_requested = Signal()
     
     def __init__(self):
         super().__init__()
@@ -88,6 +90,14 @@ class MainWindow(QMainWindow):
         
         # View menu
         view_menu = menu_bar.addMenu("&View")
+        
+        # Return to Library action
+        return_to_library_action = QAction("Return to &Library", self)
+        return_to_library_action.setShortcut("Ctrl+L")
+        return_to_library_action.triggered.connect(self.return_to_library_requested.emit)
+        view_menu.addAction(return_to_library_action)
+        
+        view_menu.addSeparator()
         
         # Create action group for exclusive selection
         view_mode_group = QActionGroup(self)
@@ -221,6 +231,40 @@ class MainWindow(QMainWindow):
             self.context_panel.hide()
             # Reset splitter to full canvas
             self.splitter.setSizes([1000, 0])
+    
+    def display_library_view(self, library_screen):
+        """Switch to library screen view.
+        
+        Args:
+            library_screen: LibraryScreen widget to display.
+        """
+        # Clear canvas container and add library screen
+        while self.canvas_layout.count():
+            item = self.canvas_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.hide()
+        
+        self.canvas_layout.addWidget(library_screen)
+        library_screen.show()
+        self.setWindowTitle("Manga Reader - Library")
+    
+    def display_reading_view(self, canvas):
+        """Switch back to reading view.
+        
+        Args:
+            canvas: MangaCanvas widget to display.
+        """
+        # Clear canvas container and add canvas
+        while self.canvas_layout.count():
+            item = self.canvas_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.hide()
+        
+        self.canvas_layout.addWidget(canvas)
+        canvas.show()
+        self.setWindowTitle("Manga Reader")
     
     @override   
     def keyPressEvent(self, event: QKeyEvent):

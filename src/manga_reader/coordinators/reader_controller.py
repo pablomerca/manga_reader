@@ -32,12 +32,14 @@ class ReaderController(QObject):
         ingestor: VolumeIngestor,
         word_interaction: WordInteractionCoordinator,
         context_coordinator: ContextPanelCoordinator,
+        library_coordinator: Optional['LibraryCoordinator'] = None,
     ):
         super().__init__()
         
         self.main_window = main_window
         self.canvas = canvas
         self.ingestor = ingestor
+        self.library_coordinator = library_coordinator
         # Fail fast if essential collaborators are missing
         if word_interaction is None:
             raise ValueError("WordInteractionCoordinator must not be None")
@@ -57,6 +59,9 @@ class ReaderController(QObject):
         self.context_coordinator.navigate_to_page_requested.connect(self._handle_navigate_to_page_request)
         self.context_coordinator.view_mode_change_requested.connect(self._handle_view_mode_change_request)
         self.context_coordinator.restore_view_requested.connect(self._handle_restore_view_request)
+        
+        # Wire main window return to library signal
+        self.main_window.return_to_library_requested.connect(self._handle_return_to_library)
     
     @Slot(Path)
     def handle_volume_opened(self, volume_path: Path):
@@ -86,6 +91,17 @@ class ReaderController(QObject):
         # Update session state
         self.current_volume = volume
         self.current_page_number = 0
+        
+        # Add to library if we have a coordinator
+        if self.library_coordinator:
+            try:
+                self.library_coordinator.add_volume_to_library(volume_path)
+            except RuntimeError as e:
+                # Log error but don't block reading
+                print(f"Warning: Could not add volume to library: {e}")
+        
+        # Switch to reading view
+        self.main_window.display_reading_view(self.canvas)
         
         # Render the first page
         self._render_current_page()
@@ -240,3 +256,9 @@ class ReaderController(QObject):
     def _on_appearance_selected(self, word_id: int, appearance_id: int, page_index: int):
         """Forward appearance selection to coordinator."""
         self.context_coordinator._on_appearance_selected(word_id, appearance_id, page_index)
+    
+    @Slot()
+    def _handle_return_to_library(self):
+        """Handle Ctrl+L to return to library."""
+        if self.library_coordinator:
+            self.library_coordinator.show_library()

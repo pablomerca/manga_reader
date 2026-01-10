@@ -6,13 +6,14 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
 from manga_reader.coordinators import (
+    LibraryCoordinator,
     ReaderController,
     WordInteractionCoordinator,
     ContextPanelCoordinator,
 )
-from manga_reader.io import DatabaseManager, VolumeIngestor
-from manga_reader.services import DictionaryService, MorphologyService, VocabularyService
-from manga_reader.ui import MainWindow, MangaCanvas, WordContextPanel
+from manga_reader.io import DatabaseManager, LibraryRepository, VolumeIngestor
+from manga_reader.services import DictionaryService, MorphologyService, ThumbnailService, VocabularyService
+from manga_reader.ui import LibraryScreen, MainWindow, MangaCanvas, WordContextPanel
 
 
 def main():
@@ -40,7 +41,12 @@ def main():
     database_manager.ensure_schema()
     vocabulary_service = VocabularyService(database_manager, morphology_service)
     
+    # Initialize library persistence and thumbnail service
+    library_repository = LibraryRepository(database_manager.connection)
+    thumbnail_service = ThumbnailService()
+    
     # 3. Construct UI (injecting dependencies)
+    library_screen = LibraryScreen()
     canvas = MangaCanvas(morphology_service=morphology_service)
     context_panel = WordContextPanel()
     main_window = MainWindow()
@@ -60,6 +66,15 @@ def main():
         vocabulary_service=vocabulary_service,
         main_window=main_window,
     )
+    
+    # Create library coordinator (pass to reader controller)
+    library_coordinator = LibraryCoordinator(
+        library_screen=library_screen,
+        library_repository=library_repository,
+        volume_ingestor=ingestor,
+        thumbnail_service=thumbnail_service,
+        main_window=main_window,
+    )
 
     controller = ReaderController(
         main_window=main_window,
@@ -67,6 +82,7 @@ def main():
         ingestor=ingestor,
         word_interaction=word_interaction,
         context_coordinator=context_coordinator,
+        library_coordinator=library_coordinator,
     )
     
     # 5. Inject controller into MainWindow and let it wire signals internally
@@ -80,7 +96,10 @@ def main():
 
     # Connect coordinator requests back to controller (already wired inside controller ctor)
     
-    # 6. Show UI and start event loop
+    # 6. Show library on startup
+    library_coordinator.show_library()
+    
+    # 7. Start event loop
     main_window.show()
     
     return app.exec()
