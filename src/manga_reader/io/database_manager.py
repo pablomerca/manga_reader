@@ -59,6 +59,18 @@ class DatabaseManager:
         )
         cur.execute(
             """
+            CREATE TABLE IF NOT EXISTS library_volumes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                folder_path TEXT NOT NULL UNIQUE,
+                cover_image_path TEXT,
+                date_added INTEGER NOT NULL,
+                last_opened INTEGER NOT NULL
+            );
+            """
+        )
+        cur.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_tracked_words_lemma
             ON tracked_words(lemma);
             """
