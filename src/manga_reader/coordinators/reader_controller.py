@@ -8,6 +8,7 @@ from manga_reader.core import MangaVolume
 from manga_reader.io import VolumeIngestor
 from manga_reader.services import DictionaryService, VocabularyService
 from manga_reader.ui import MainWindow, MangaCanvas, WordContextPanel
+from .word_interaction_coordinator import WordInteractionCoordinator
 
 from .view_modes import (
     ViewMode,
@@ -30,6 +31,7 @@ class ReaderController(QObject):
         dictionary_service: DictionaryService,
         vocabulary_service: VocabularyService,
         context_panel: WordContextPanel,
+        word_interaction: WordInteractionCoordinator | None = None,
     ):
         super().__init__()
         
@@ -39,6 +41,7 @@ class ReaderController(QObject):
         self.dictionary_service = dictionary_service
         self.vocabulary_service = vocabulary_service
         self.context_panel = context_panel
+        self.word_interaction = word_interaction
         
         # Session state
         self.current_volume: MangaVolume | None = None
@@ -48,7 +51,7 @@ class ReaderController(QObject):
         self.previous_page_number: int = 0  # For restoring page when context closes from double mode
         self.context_panel_active: bool = False  # Track if context panel is open
         
-        # Store context of the last clicked word for tracking
+        # Store context of the last clicked word for tracking (fallback compatibility)
         self.last_clicked_lemma: str | None = None
         self.last_clicked_page_index: int | None = None
         self.last_clicked_block_text: str | None = None  # Text from the block where word was clicked
@@ -107,8 +110,115 @@ class ReaderController(QObject):
         )
         if pages_to_render:
             self.canvas.render_pages(pages_to_render)
+            # Keep coordinators in sync with current session context
+            if self.word_interaction is not None:
+                self.word_interaction.set_volume_context(self.current_volume, self.current_page_number)
         else:
             self.canvas.hide_dictionary_popup()
+
+    # Backwards-compatible delegating slots for tests and legacy wiring
+    @Slot(str, str, int, int, int, int)
+    def handle_word_clicked(
+        self,
+        lemma: str,
+        surface: str,
+        mouse_x: int,
+        mouse_y: int,
+        page_index: int = -1,
+        block_id: int = -1,
+    ):
+        """Delegate word click handling to WordInteractionCoordinator."""
+        if self.word_interaction is not None:
+            self.word_interaction.handle_word_clicked(
+                lemma, surface, mouse_x, mouse_y, page_index, block_id
+            )
+            return
+
+        # Fallback: original inline logic for backward compatibility in tests
+        if self.dictionary_service is None:
+            return
+
+        self.last_clicked_lemma = lemma
+        self.last_clicked_page_index = page_index if page_index >= 0 else self.current_page_number
+        self.last_clicked_block_text = None
+
+        if self.current_volume is not None:
+            current_page = self.current_volume.get_page(self.last_clicked_page_index)
+            if current_page is not None:
+                clicked_block = None
+                if block_id is not None and block_id >= 0 and block_id < len(current_page.ocr_blocks):
+                    clicked_block = current_page.ocr_blocks[block_id]
+                else:
+                    clicked_block = current_page.find_block_at_position(mouse_x, mouse_y)
+                if clicked_block is not None:
+                    self.last_clicked_block_text = clicked_block.full_text
+
+        entry = self.dictionary_service.lookup(lemma, surface)
+        is_tracked = self.vocabulary_service.is_word_tracked(lemma)
+
+        payload = {
+            "surface": surface or lemma,
+            "reading": entry.reading if entry else "",
+            "senses": [
+                {"glosses": sense.glosses, "pos": sense.pos}
+                for sense in entry.senses
+            ] if entry else [],
+            "mouseX": mouse_x,
+            "mouseY": mouse_y,
+            "notFound": entry is None,
+            "isTracked": is_tracked,
+            "lemma": lemma,
+        }
+
+        self.canvas.show_dictionary_popup(payload)
+
+    @Slot(str, str, str)
+    def handle_track_word(self, lemma: str, reading: str, part_of_speech: str):
+        """Delegate track word handling to WordInteractionCoordinator."""
+        if self.word_interaction is not None:
+            self.word_interaction.handle_track_word(lemma, reading, part_of_speech)
+            return
+
+        # Fallback: original inline logic for backward compatibility in tests
+        if self.current_volume is None:
+            self.main_window.show_error(
+                "No Volume Open",
+                "Please open a manga volume before tracking words.",
+            )
+            return
+
+        page_index = self.last_clicked_page_index if self.last_clicked_page_index is not None else self.current_page_number
+        current_page = self.current_volume.get_page(page_index)
+        if not current_page:
+            return
+
+        if self.last_clicked_block_text:
+            sentence = self.last_clicked_block_text
+        else:
+            sentence = current_page.get_all_text()
+
+        crop_coords = {"x": 0, "y": 0, "width": 100, "height": 50}
+
+        try:
+            self.vocabulary_service.track_word(
+                lemma=lemma,
+                reading=reading,
+                part_of_speech=part_of_speech,
+                volume_path=self.current_volume.volume_path,
+                page_index=page_index,
+                crop_coordinates=crop_coords,
+                sentence_text=sentence,
+            )
+
+            self.main_window.show_info(
+                "Word Tracked",
+                f"Added '{lemma}' to your vocabulary!\nReading: {reading}\nType: {part_of_speech}",
+            )
+        except Exception as e:
+            self.main_window.show_error(
+                "Tracking Failed",
+                f"Could not track word: {e}",
+            )
     
     def next_page(self):
         """Navigate to the next page, skipping appropriately in double page mode."""
@@ -169,124 +279,7 @@ class ReaderController(QObject):
         self.view_mode = new_mode
         self._render_current_page()
 
-    @Slot(str, str, int, int, int, int)
-    def handle_word_clicked(self, lemma: str, surface: str, mouse_x: int, mouse_y: int, page_index: int = -1, block_id: int = -1):
-        """Handle word clicks from the canvas and show dictionary popup.
-        
-        Stores the block context (page, block text) from where the word was clicked
-        for accurate sentence context when tracking.
-        
-        Args:
-            lemma: The dictionary base form
-            surface: The surface form of the word
-            mouse_x: X coordinate of the click (in viewport coordinates)
-            mouse_y: Y coordinate of the click (in viewport coordinates)
-        """
-        if self.dictionary_service is None:
-            return
-
-        # Store the context of this clicked word for later use during tracking
-        self.last_clicked_lemma = lemma
-        self.last_clicked_page_index = page_index if page_index >= 0 else self.current_page_number
-        self.last_clicked_block_text = None  # Reset
-        
-        # Find the OCR block using explicit block id (preferred) or coordinates
-        if self.current_volume is not None:
-            current_page = self.current_volume.get_page(self.last_clicked_page_index)
-            if current_page is not None:
-                clicked_block = None
-                # Prefer block id when provided
-                if block_id is not None and block_id >= 0 and block_id < len(current_page.ocr_blocks):
-                    clicked_block = current_page.ocr_blocks[block_id]
-                else:
-                    # Fallback: positional lookup (may be affected by zoom/pan)
-                    clicked_block = current_page.find_block_at_position(mouse_x, mouse_y)
-                if clicked_block is not None:
-                    self.last_clicked_block_text = clicked_block.full_text
-
-        entry = self.dictionary_service.lookup(lemma, surface)
-        
-        # Check if word is already tracked
-        is_tracked = self.vocabulary_service.is_word_tracked(lemma)
-
-        payload = {
-            "surface": surface or lemma,
-            "reading": entry.reading if entry else "",
-            "senses": [
-                {"glosses": sense.glosses, "pos": sense.pos}
-                for sense in entry.senses
-            ] if entry else [],
-            "mouseX": mouse_x,
-            "mouseY": mouse_y,
-            "notFound": entry is None,
-            "isTracked": is_tracked,
-            "lemma": lemma,
-        }
-
-        self.canvas.show_dictionary_popup(payload)
-
-    @Slot(str, str, str)
-    def handle_track_word(self, lemma: str, reading: str, part_of_speech: str):
-        """
-        Handle tracking a word from the dictionary popup.
-        
-        Uses the stored block context from when the word was clicked to capture
-        the exact dialogue/sentence where the word appears. This ensures accurate
-        contextual information even if the user navigates pages before tracking.
-        
-        Args:
-            lemma: The dictionary base form
-            reading: The kana reading
-            part_of_speech: POS tag (e.g., "Noun", "Verb")
-        """
-        if self.current_volume is None:
-            self.main_window.show_error(
-                "No Volume Open",
-                "Please open a manga volume before tracking words."
-            )
-            return
-
-        # Use the stored page from when the word was clicked, not current page
-        # This ensures we capture context from the correct page even if user navigated
-        page_index = self.last_clicked_page_index if self.last_clicked_page_index is not None else self.current_page_number
-        current_page = self.current_volume.get_page(page_index)
-        if not current_page:
-            return
-
-        # Use the stored block text (the actual dialogue where the word was clicked)
-        # This is much more accurate than grabbing arbitrary text from the page
-        if self.last_clicked_block_text:
-            sentence = self.last_clicked_block_text
-        else:
-            # Fallback: if we couldn't find the block, use all page text (shouldn't happen)
-            sentence = current_page.get_all_text()
-
-        # For MVP, use placeholder coordinates
-        # TODO: Capture actual block coordinates from the clicked word's position
-        crop_coords = {"x": 0, "y": 0, "width": 100, "height": 50}
-
-        try:
-            word, appearance = self.vocabulary_service.track_word(
-                lemma=lemma,
-                reading=reading,
-                part_of_speech=part_of_speech,
-                volume_path=self.current_volume.volume_path,
-                page_index=page_index,
-                crop_coordinates=crop_coords,
-                sentence_text=sentence,
-            )
-            
-            self.main_window.show_info(
-                "Word Tracked",
-                f"Added '{lemma}' to your vocabulary!\n"
-                f"Reading: {reading}\n"
-                f"Type: {part_of_speech}"
-            )
-        except Exception as e:
-            self.main_window.show_error(
-                "Tracking Failed",
-                f"Could not track word: {e}"
-            )
+    # Word interaction is delegated to WordInteractionCoordinator
 
     @Slot(str)
     def handle_view_context_by_lemma(self, lemma: str):

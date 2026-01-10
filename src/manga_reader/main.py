@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from manga_reader.coordinators import ReaderController
+from manga_reader.coordinators import ReaderController, WordInteractionCoordinator
 from manga_reader.io import DatabaseManager, VolumeIngestor
 from manga_reader.services import DictionaryService, MorphologyService, VocabularyService
 from manga_reader.ui import MainWindow, MangaCanvas, WordContextPanel
@@ -43,7 +43,14 @@ def main():
     main_window.set_canvas(canvas)
     main_window.set_context_panel(context_panel)
     
-    # 4. Instantiate Coordinator (Dependency Injection)
+    # 4. Instantiate Coordinators (Dependency Injection)
+    word_interaction = WordInteractionCoordinator(
+        canvas=canvas,
+        dictionary_service=dictionary_service,
+        vocabulary_service=vocabulary_service,
+        main_window=main_window,
+    )
+
     controller = ReaderController(
         main_window=main_window,
         canvas=canvas,
@@ -51,12 +58,14 @@ def main():
         dictionary_service=dictionary_service,
         vocabulary_service=vocabulary_service,
         context_panel=context_panel,
+        word_interaction=word_interaction,
     )
     
     # 5. Inject controller into MainWindow and let it wire signals internally
     main_window.set_controller(controller)
-    canvas.word_clicked.connect(controller.handle_word_clicked)
-    canvas.track_word_requested.connect(controller.handle_track_word)
+    # Route word interactions to dedicated coordinator
+    canvas.word_clicked.connect(word_interaction.handle_word_clicked)
+    canvas.track_word_requested.connect(word_interaction.handle_track_word)
     canvas.view_word_context_requested.connect(controller.handle_view_word_context)
     canvas.view_context_by_lemma_requested.connect(controller.handle_view_context_by_lemma)
     
