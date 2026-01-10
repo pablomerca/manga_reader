@@ -84,11 +84,14 @@ class MangaCanvas(QWidget):
     # Signal emitted when user clicks View Context button in popup (by lemma)
     view_context_by_lemma_requested = Signal(str)  # lemma
     
-    def __init__(self, morphology_service: Optional[MorphologyService] = None):
+    def __init__(self, morphology_service: MorphologyService):
         super().__init__()
         
-        # Initialize morphology service (dependency injection; can be None if not available)
-        self.morphology_service = morphology_service or MorphologyService()
+        if morphology_service is None:
+            raise ValueError("MorphologyService must not be None")
+
+        # Initialize morphology service (dependency injection)
+        self.morphology_service = morphology_service
         
         # Create layout
         layout = QVBoxLayout(self)

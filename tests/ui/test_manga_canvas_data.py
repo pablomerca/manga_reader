@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from PySide6.QtCore import QUrl
 
@@ -16,7 +16,7 @@ def test_prepare_data_structure():
          patch('manga_reader.ui.manga_canvas.QWebChannel'), \
          patch('manga_reader.ui.manga_canvas.WebConnector'):
         
-        canvas = MangaCanvas()
+        canvas = MangaCanvas(morphology_service=MagicMock())
         
         # Create a sample page with one OCR block
         block = OCRBlock(x=10, y=20, width=100, height=200, text_lines=["Hello"])
@@ -59,7 +59,7 @@ def test_prepare_data_ordering_rtl():
          patch('manga_reader.ui.manga_canvas.QWebChannel'), \
          patch('manga_reader.ui.manga_canvas.WebConnector'):
         
-        canvas = MangaCanvas()
+        canvas = MangaCanvas(morphology_service=MagicMock())
         
         page1 = MangaPage(0, Path('p1.jpg'), 100, 100, [])
         page2 = MangaPage(1, Path('p2.jpg'), 100, 100, [])

@@ -20,7 +20,7 @@ def manga_canvas():
         mock_view_instance.focusProxy.return_value = MagicMock()
         mock_view_instance.page.return_value = MagicMock()
         
-        canvas = MangaCanvas()
+        canvas = MangaCanvas(morphology_service=MagicMock())
         return canvas
 
 def test_calculate_font_size_height_constraint(manga_canvas):
