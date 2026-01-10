@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from PySide6.QtCore import QObject
 
-from manga_reader.coordinators import ReaderController
+from manga_reader.coordinators import ReaderController, WordInteractionCoordinator, ContextPanelCoordinator
 from manga_reader.coordinators.view_modes import DOUBLE_PAGE_MODE, SINGLE_PAGE_MODE
 from manga_reader.core import MangaPage, MangaVolume, OCRBlock, TrackedWord, WordAppearance
 from manga_reader.io import DatabaseManager
@@ -87,14 +87,24 @@ def mock_context_panel():
 @pytest.fixture
 def controller(mock_main_window, mock_canvas, mock_ingestor, 
                mock_dictionary_service, mock_vocabulary_service, mock_context_panel):
-    """Create a ReaderController with mocked dependencies."""
+    """Create a ReaderController with mocked dependencies and coordinators."""
+    word_coord = WordInteractionCoordinator(
+        canvas=mock_canvas,
+        dictionary_service=mock_dictionary_service,
+        vocabulary_service=mock_vocabulary_service,
+        main_window=mock_main_window,
+    )
+    context_coord = ContextPanelCoordinator(
+        context_panel=mock_context_panel,
+        vocabulary_service=mock_vocabulary_service,
+        main_window=mock_main_window,
+    )
     ctrl = ReaderController(
         main_window=mock_main_window,
         canvas=mock_canvas,
         ingestor=mock_ingestor,
-        dictionary_service=mock_dictionary_service,
-        vocabulary_service=mock_vocabulary_service,
-        context_panel=mock_context_panel,
+        word_interaction=word_coord,
+        context_coordinator=context_coord,
     )
     return ctrl
 
@@ -241,7 +251,7 @@ class TestHandleTrackWord:
         controller.handle_track_word("taberu", "たべる", "Verb")
         
         mock_main_window.show_info.assert_called_once()
-        tracked_words = controller.vocabulary_service.list_tracked_words()
+        tracked_words = controller.word_interaction.vocabulary_service.list_tracked_words()
         assert len(tracked_words) == 1
         assert tracked_words[0].lemma == "taberu"
 
@@ -252,7 +262,7 @@ class TestHandleTrackWord:
         controller.current_page_number = 0
         
         # Mock the vocabulary service to raise an exception
-        controller.vocabulary_service.track_word = MagicMock(
+        controller.word_interaction.vocabulary_service.track_word = MagicMock(
             side_effect=Exception("Database error")
         )
         
@@ -354,7 +364,7 @@ class TestHandleViewWordContext:
     def test_view_context_error_handling(self, controller, mock_main_window):
         """Test error handling when context lookup fails."""
         # Mock the vocabulary service to raise an exception
-        controller.vocabulary_service.list_appearances = MagicMock(
+        controller.context_coordinator.vocabulary_service.list_appearances = MagicMock(
             side_effect=Exception("Database error")
         )
         
@@ -423,7 +433,7 @@ class TestHandleOpenVocabularyList:
 
     def test_vocabulary_list_error_handling(self, controller, mock_main_window):
         """Test error handling when listing vocabulary fails."""
-        controller.vocabulary_service.list_tracked_words = MagicMock(
+        controller.context_coordinator.vocabulary_service.list_tracked_words = MagicMock(
             side_effect=Exception("Database error")
         )
         

@@ -49,6 +49,10 @@ class ContextPanelCoordinator(QObject):
         self._current_page: int = 0
         self._view_mode: Optional[ViewMode] = None
 
+        # Wire context panel signals
+        self.context_panel.closed.connect(self._on_context_panel_closed)
+        self.context_panel.appearance_selected.connect(self._on_appearance_selected)
+
     def set_session_context(self, volume: Optional[MangaVolume], view_mode: ViewMode, current_page: int):
         """Update the current session context (called by ReaderController)."""
         self._current_volume = volume

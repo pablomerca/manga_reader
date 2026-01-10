@@ -65,9 +65,6 @@ def main():
         main_window=main_window,
         canvas=canvas,
         ingestor=ingestor,
-        dictionary_service=dictionary_service,
-        vocabulary_service=vocabulary_service,
-        context_panel=context_panel,
         word_interaction=word_interaction,
         context_coordinator=context_coordinator,
     )
