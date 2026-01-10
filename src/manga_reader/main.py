@@ -5,7 +5,11 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from manga_reader.coordinators import ReaderController, WordInteractionCoordinator
+from manga_reader.coordinators import (
+    ReaderController,
+    WordInteractionCoordinator,
+    ContextPanelCoordinator,
+)
 from manga_reader.io import DatabaseManager, VolumeIngestor
 from manga_reader.services import DictionaryService, MorphologyService, VocabularyService
 from manga_reader.ui import MainWindow, MangaCanvas, WordContextPanel
@@ -51,6 +55,12 @@ def main():
         main_window=main_window,
     )
 
+    context_coordinator = ContextPanelCoordinator(
+        context_panel=context_panel,
+        vocabulary_service=vocabulary_service,
+        main_window=main_window,
+    )
+
     controller = ReaderController(
         main_window=main_window,
         canvas=canvas,
@@ -59,6 +69,7 @@ def main():
         vocabulary_service=vocabulary_service,
         context_panel=context_panel,
         word_interaction=word_interaction,
+        context_coordinator=context_coordinator,
     )
     
     # 5. Inject controller into MainWindow and let it wire signals internally
@@ -67,7 +78,10 @@ def main():
     canvas.word_clicked.connect(word_interaction.handle_word_clicked)
     canvas.track_word_requested.connect(word_interaction.handle_track_word)
     canvas.view_word_context_requested.connect(controller.handle_view_word_context)
-    canvas.view_context_by_lemma_requested.connect(controller.handle_view_context_by_lemma)
+    # Route lemma-based context requests via context coordinator
+    canvas.view_context_by_lemma_requested.connect(context_coordinator.handle_view_context_by_lemma)
+
+    # Connect coordinator requests back to controller (already wired inside controller ctor)
     
     # 6. Show UI and start event loop
     main_window.show()

@@ -9,6 +9,7 @@ from manga_reader.io import VolumeIngestor
 from manga_reader.services import DictionaryService, VocabularyService
 from manga_reader.ui import MainWindow, MangaCanvas, WordContextPanel
 from .word_interaction_coordinator import WordInteractionCoordinator
+from .context_panel_coordinator import ContextPanelCoordinator
 
 from .view_modes import (
     ViewMode,
@@ -32,6 +33,7 @@ class ReaderController(QObject):
         vocabulary_service: VocabularyService,
         context_panel: WordContextPanel,
         word_interaction: WordInteractionCoordinator | None = None,
+        context_coordinator: ContextPanelCoordinator | None = None,
     ):
         super().__init__()
         
@@ -42,6 +44,7 @@ class ReaderController(QObject):
         self.vocabulary_service = vocabulary_service
         self.context_panel = context_panel
         self.word_interaction = word_interaction
+        self.context_coordinator = context_coordinator
         
         # Session state
         self.current_volume: MangaVolume | None = None
@@ -56,9 +59,15 @@ class ReaderController(QObject):
         self.last_clicked_page_index: int | None = None
         self.last_clicked_block_text: str | None = None  # Text from the block where word was clicked
         
-        # Wire context panel signals
+        # Wire context panel signals (keep for backward compatibility)
         self.context_panel.closed.connect(self._on_context_panel_closed)
         self.context_panel.appearance_selected.connect(self._on_appearance_selected)
+
+        # If a context coordinator is provided, wire its requests to handler slots
+        if self.context_coordinator is not None:
+            self.context_coordinator.navigate_to_page_requested.connect(self._handle_navigate_to_page_request)
+            self.context_coordinator.view_mode_change_requested.connect(self._handle_view_mode_change_request)
+            self.context_coordinator.restore_view_requested.connect(self._handle_restore_view_request)
     
     @Slot(Path)
     def handle_volume_opened(self, volume_path: Path):
@@ -113,6 +122,8 @@ class ReaderController(QObject):
             # Keep coordinators in sync with current session context
             if self.word_interaction is not None:
                 self.word_interaction.set_volume_context(self.current_volume, self.current_page_number)
+            if self.context_coordinator is not None:
+                self.context_coordinator.set_session_context(self.current_volume, self.view_mode, self.current_page_number)
         else:
             self.canvas.hide_dictionary_popup()
 
@@ -279,50 +290,61 @@ class ReaderController(QObject):
         self.view_mode = new_mode
         self._render_current_page()
 
+    # Slots to handle requests from ContextPanelCoordinator
+    @Slot(int)
+    def _handle_navigate_to_page_request(self, page_index: int):
+        """Handle navigation request from ContextPanelCoordinator."""
+        self.jump_to_page(page_index)
+
+    @Slot(str, int)
+    def _handle_view_mode_change_request(self, mode_name: str, target_page: int):
+        """Handle view mode change request from ContextPanelCoordinator."""
+        new_mode = create_view_mode(mode_name)
+        if new_mode:
+            self.view_mode = new_mode
+            self.current_page_number = target_page
+            self._render_current_page()
+
+    @Slot(str, int)
+    def _handle_restore_view_request(self, mode_name: str, page_number: int):
+        """Handle request to restore previous view state."""
+        new_mode = create_view_mode(mode_name)
+        if new_mode:
+            self.view_mode = new_mode
+            self.current_page_number = page_number
+            self._render_current_page()
+
     # Word interaction is delegated to WordInteractionCoordinator
 
     @Slot(str)
     def handle_view_context_by_lemma(self, lemma: str):
-        """
-        Handle View Context button click from dictionary popup.
-        Find the word by lemma and display its appearances.
-        
-        Args:
-            lemma: The dictionary base form of the word
-        """
+        """Delegate to ContextPanelCoordinator if available, else inline logic."""
+        if self.context_coordinator is not None:
+            self.context_coordinator.handle_view_context_by_lemma(lemma)
+            return
         try:
-            # Find the tracked word by lemma
             tracked_words = self.vocabulary_service.list_tracked_words()
             tracked_word = next((w for w in tracked_words if w.lemma == lemma), None)
-            
             if not tracked_word:
-                self.main_window.show_error(
-                    "Word Not Tracked",
-                    f"'{lemma}' is not yet tracked. Please track it first."
-                )
+                self.main_window.show_error("Word Not Tracked", f"'{lemma}' is not yet tracked. Please track it first.")
                 return
-            
-            # Use the existing handler to show context
             self.handle_view_word_context(tracked_word.id)
         except Exception as e:
-            self.main_window.show_error(
-                "Context Lookup Failed",
-                f"Could not retrieve word appearances: {e}"
-            )
+            self.main_window.show_error("Context Lookup Failed", f"Could not retrieve word appearances: {e}")
 
     @Slot()
     def handle_open_vocabulary_list(self):
-        """Handle request to open the vocabulary manager window."""
+        """Delegate to ContextPanelCoordinator if available, else inline logic."""
+        if self.context_coordinator is not None:
+            self.context_coordinator.handle_open_vocabulary_list()
+            return
         try:
             tracked_words = self.vocabulary_service.list_tracked_words()
-            
-            # For MVP, show simple message with count
-            # TODO: Create proper VocabularyManager dialog
             if not tracked_words:
                 self.main_window.show_info(
                     "Vocabulary List",
                     "You haven't tracked any words yet.\n\n"
-                    "Click on a word in the manga and use the 'Track' button."
+                    "Click on a word in the manga and use the 'Track' button.",
                 )
             else:
                 word_list = "\n".join(
@@ -330,84 +352,54 @@ class ReaderController(QObject):
                     for w in tracked_words[:10]
                 )
                 more_text = f"\n... and {len(tracked_words) - 10} more" if len(tracked_words) > 10 else ""
-                
                 self.main_window.show_info(
                     "Vocabulary List",
-                    f"You have tracked {len(tracked_words)} word(s):\n\n{word_list}{more_text}"
+                    f"You have tracked {len(tracked_words)} word(s):\n\n{word_list}{more_text}",
                 )
         except Exception as e:
-            self.main_window.show_error(
-                "List Failed",
-                f"Could not retrieve vocabulary list: {e}"
-            )
+            self.main_window.show_error("List Failed", f"Could not retrieve vocabulary list: {e}")
 
     # TODO: make more efficient
     @Slot(int)
     def handle_view_word_context(self, word_id: int):
-        """
-        Handle request to view all appearances of a tracked word.
-        Opens the context split view panel showing all occurrences.
-        
-        Args:
-            word_id: The ID of the tracked word
-        """
+        """Delegate to ContextPanelCoordinator if available, else inline logic."""
+        if self.context_coordinator is not None:
+            self.context_coordinator.handle_view_word_context(word_id)
+            return
         try:
-            # Retrieve the tracked word and its appearances
             tracked_words = self.vocabulary_service.list_tracked_words()
             tracked_word = next((w for w in tracked_words if w.id == word_id), None)
-            
             if not tracked_word:
-                self.main_window.show_error(
-                    "Word Not Found",
-                    "The requested word could not be found in vocabulary."
-                )
+                self.main_window.show_error("Word Not Found", "The requested word could not be found in vocabulary.")
                 return
-            
             appearances = self.vocabulary_service.list_appearances(word_id)
-            
             if not appearances:
-                self.main_window.show_info(
-                    "No Appearances",
-                    f"The word '{tracked_word.lemma}' has no recorded appearances."
-                )
+                self.main_window.show_info("No Appearances", f"The word '{tracked_word.lemma}' has no recorded appearances.")
                 return
-            
-            # Display word context in split view panel
             self.context_panel.display_word_context(
-                word_id=word_id,
-                word_lemma=tracked_word.lemma,
-                appearances=appearances
+                word_id=word_id, word_lemma=tracked_word.lemma, appearances=appearances
             )
-            
-            # Save current view mode and page number for restoration
             self.previous_view_mode = self.view_mode
-            self.previous_page_number = self.current_page_number  # Save original page before navigating
+            self.previous_page_number = self.current_page_number
             self.context_panel_active = True
-            
-            # Show the context panel
             self.main_window.show_context_panel()
-            
             self._switch_to_context_view()
-                
         except Exception as e:
-            self.main_window.show_error(
-                "Context Lookup Failed",
-                f"Could not retrieve word appearances: {e}"
-            )
+            self.main_window.show_error("Context Lookup Failed", f"Could not retrieve word appearances: {e}")
     
     @Slot()
     def _on_context_panel_closed(self):
         """Handle when user closes the context panel."""
+        if self.context_coordinator is not None:
+            # Let coordinator emit restore request
+            self.context_coordinator._on_context_panel_closed()
+            return
         self.context_panel_active = False
         self.main_window.hide_context_panel()
-        
-        # Restore previous view mode and page number if they were different
         if (
             self.view_mode.name != self.previous_view_mode.name
             or self.current_page_number != self.previous_page_number
         ):
-            # Restore the original page number before we entered context mode
-            # This prevents page shift when returning to double-page mode
             self.current_page_number = self.previous_page_number
             self.view_mode = self.previous_view_mode
             self._render_current_page()
@@ -433,29 +425,16 @@ class ReaderController(QObject):
     
     @Slot(int, int, int)
     def _on_appearance_selected(self, word_id: int, appearance_id: int, page_index: int):
-        """
-        Handle when user selects an appearance in the context panel.
-        Navigate to that page, ensuring it appears on the left in double-page mode.
-        
-        Args:
-            word_id: The word ID (for future use)
-            appearance_id: The appearance ID (for future use - could show highlight)
-            page_index: The page to jump to (0-indexed)
-        """
+        """Forward appearance selection to coordinator or handle inline."""
+        if self.context_coordinator is not None:
+            self.context_coordinator._on_appearance_selected(word_id, appearance_id, page_index)
+            return
         if self.current_volume is None:
             return
-        
-        # Validate page index
         if not (0 <= page_index < self.current_volume.total_pages):
-            self.main_window.show_error(
-                "Invalid Page",
-                f"Page {page_index + 1} is not available in this volume."
-            )
+            self.main_window.show_error("Invalid Page", f"Page {page_index + 1} is not available in this volume.")
             return
-        
         self.current_page_number = self.view_mode.page_for_appearance(
-            self.current_volume,
-            page_index,
-            self.current_page_number,
+            self.current_volume, page_index, self.current_page_number
         )
         self._render_current_page()
