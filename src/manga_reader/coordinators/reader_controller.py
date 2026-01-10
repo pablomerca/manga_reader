@@ -9,6 +9,12 @@ from manga_reader.io import VolumeIngestor
 from manga_reader.services import DictionaryService, VocabularyService
 from manga_reader.ui import MainWindow, MangaCanvas, WordContextPanel
 
+from .view_modes import (
+    ViewMode,
+    create_view_mode,
+    SINGLE_PAGE_MODE,
+)
+
 
 class ReaderController(QObject):
     """
@@ -37,8 +43,10 @@ class ReaderController(QObject):
         # Session state
         self.current_volume: MangaVolume | None = None
         self.current_page_number: int = 0
-        self.view_mode: str = "single"  # "single" or "double"
-        self.previous_view_mode: str = "single"  # For restoring when context closes        self.previous_page_number: int = 0  # For restoring page when context closes from double mode        self.context_panel_active: bool = False  # Track if context panel is open
+        self.view_mode: ViewMode = SINGLE_PAGE_MODE
+        self.previous_view_mode: ViewMode = self.view_mode
+        self.previous_page_number: int = 0  # For restoring page when context closes from double mode
+        self.context_panel_active: bool = False  # Track if context panel is open
         
         # Store context of the last clicked word for tracking
         self.last_clicked_lemma: str | None = None
@@ -93,61 +101,26 @@ class ReaderController(QObject):
         if self.current_volume is None:
             return
         
-        pages_to_render = self._get_pages_to_render()
+        pages_to_render = self.view_mode.pages_to_render(
+            self.current_volume,
+            self.current_page_number,
+        )
         if pages_to_render:
             self.canvas.render_pages(pages_to_render)
         else:
             self.canvas.hide_dictionary_popup()
-    
-    def _get_pages_to_render(self) -> list:
-        """
-        Determine which page(s) to render based on view mode and page orientation.
-        
-        Returns:
-            List of MangaPage objects to render
-        """
-        if self.current_volume is None:
-            return []
-        
-        current_page = self.current_volume.get_page(self.current_page_number)
-        if not current_page:
-            return []
-        
-        # Single page mode: always return one page
-        if self.view_mode == "single":
-            return [current_page]
-        
-        # Double page mode
-        # If current page is landscape, show only this page
-        if not current_page.is_portrait():
-            return [current_page]
-        
-        # Check if there's a next page
-        if self.current_page_number >= self.current_volume.total_pages - 1:
-            # Last page, show only current
-            return [current_page]
-        
-        next_page = self.current_volume.get_page(self.current_page_number + 1)
-        if not next_page:
-            return [current_page]
-        
-        # If next page is also portrait, show both
-        if next_page.is_portrait():
-            return [current_page, next_page]
-        
-        # Next page is landscape, show only current
-        return [current_page]
     
     def next_page(self):
         """Navigate to the next page, skipping appropriately in double page mode."""
         if self.current_volume is None:
             return
         
-        # Determine how many pages to skip
-        pages_displayed = len(self._get_pages_to_render())
-        next_page_num = self.current_page_number + pages_displayed
+        next_page_num = self.view_mode.next_page_number(
+            self.current_volume,
+            self.current_page_number,
+        )
         
-        if next_page_num < self.current_volume.total_pages:
+        if next_page_num != self.current_page_number:
             self.current_page_number = next_page_num
             self._render_current_page()
     
@@ -157,21 +130,14 @@ class ReaderController(QObject):
             return
         
         if self.current_page_number > 0:
-            # In double page mode, we need to check if the previous spread was double
-            if self.view_mode == "double" and self.current_page_number >= 2:
-                # Check the page before current
-                prev_page = self.current_volume.get_page(self.current_page_number - 2)
-                current_prev = self.current_volume.get_page(self.current_page_number - 1)
-                
-                # If both are portrait, we were showing a double spread, go back 2
-                if prev_page and current_prev and prev_page.is_portrait() and current_prev.is_portrait():
-                    self.current_page_number -= 2
-                else:
-                    self.current_page_number -= 1
-            else:
-                self.current_page_number -= 1
+            prev_page_num = self.view_mode.previous_page_number(
+                self.current_volume,
+                self.current_page_number,
+            )
             
-            self._render_current_page()
+            if prev_page_num != self.current_page_number:
+                self.current_page_number = prev_page_num
+                self._render_current_page()
     
     def jump_to_page(self, page_number: int):
         """
@@ -195,11 +161,12 @@ class ReaderController(QObject):
         Args:
             mode: Either "single" or "double"
         """
-        if mode not in ("single", "double"):
+        new_mode = create_view_mode(mode)
+        if new_mode is None:
             return
         
-        self.view_mode = mode
-        # Re-render current page(s) with new mode
+        # Update mode and re-render
+        self.view_mode = new_mode
         self._render_current_page()
 
     @Slot(str, str, int, int, int, int)
@@ -427,15 +394,7 @@ class ReaderController(QObject):
             # Show the context panel
             self.main_window.show_context_panel()
             
-            # Switch to single page mode if in double page mode
-            # IMPORTANT: Navigate to the page where the word was clicked before switching modes
-            if self.view_mode == "double":
-                # If we have a stored clicked page index, navigate to it first
-                # This ensures we show the correct page when switching from double to single
-                if self.last_clicked_page_index is not None and self.last_clicked_page_index != self.current_page_number:
-                    self.current_page_number = self.last_clicked_page_index
-                self.view_mode = "single"
-                self._render_current_page()
+            self._switch_to_context_view()
                 
         except Exception as e:
             self.main_window.show_error(
@@ -450,11 +409,33 @@ class ReaderController(QObject):
         self.main_window.hide_context_panel()
         
         # Restore previous view mode and page number if they were different
-        if self.view_mode != self.previous_view_mode:
+        if (
+            self.view_mode.name != self.previous_view_mode.name
+            or self.current_page_number != self.previous_page_number
+        ):
             # Restore the original page number before we entered context mode
             # This prevents page shift when returning to double-page mode
             self.current_page_number = self.previous_page_number
             self.view_mode = self.previous_view_mode
+            self._render_current_page()
+
+    def _switch_to_context_view(self):
+        """Adjust page and view mode when entering context panel view."""
+        current_before_context = self.current_page_number
+
+        target_page = self.view_mode.page_for_context(
+            current_page_number=self.current_page_number,
+            last_clicked_page_index=self.last_clicked_page_index,
+        )
+        context_mode = self.view_mode.context_view_mode()
+
+        mode_changed = context_mode.name != self.view_mode.name
+        page_changed = target_page != current_before_context
+
+        self.current_page_number = target_page
+        if mode_changed:
+            self.view_mode = context_mode
+        if mode_changed or page_changed:
             self._render_current_page()
     
     @Slot(int, int, int)
@@ -479,34 +460,9 @@ class ReaderController(QObject):
             )
             return
         
-        # In double-page mode, pages are rendered as [current, current+1]
-        # but displayed in RTL order as [current+1 (left), current (right)]
-        # So to show a specific page on the LEFT, we need to set current_page_number
-        # to (page_index - 1) when in double mode
-        if self.view_mode == "double":
-            # Check if the target page is portrait and can be paired
-            target_page = self.current_volume.get_page(page_index)
-            if target_page and target_page.is_portrait():
-                # To show page_index on the LEFT side of a double spread,
-                # we need to render [page_index-1, page_index]
-                # which will display as [page_index (left), page_index-1 (right)]
-                if page_index > 0:
-                    prev_page = self.current_volume.get_page(page_index - 1)
-                    # Only shift if previous page is also portrait
-                    if prev_page and prev_page.is_portrait():
-                        self.current_page_number = page_index - 1
-                    else:
-                        # Previous page is landscape or doesn't exist, 
-                        # so target page will be on the right side of its spread
-                        self.current_page_number = page_index
-                else:
-                    # First page, will always be on right
-                    self.current_page_number = page_index
-            else:
-                # Landscape page, shown alone
-                self.current_page_number = page_index
-        else:
-            # Single page mode, just navigate normally
-            self.current_page_number = page_index
-        
+        self.current_page_number = self.view_mode.page_for_appearance(
+            self.current_volume,
+            page_index,
+            self.current_page_number,
+        )
         self._render_current_page()

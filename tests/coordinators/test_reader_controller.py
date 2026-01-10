@@ -7,6 +7,7 @@ import pytest
 from PySide6.QtCore import QObject
 
 from manga_reader.coordinators import ReaderController
+from manga_reader.coordinators.view_modes import DOUBLE_PAGE_MODE, SINGLE_PAGE_MODE
 from manga_reader.core import MangaPage, MangaVolume, OCRBlock, TrackedWord, WordAppearance
 from manga_reader.io import DatabaseManager
 from manga_reader.services import DictionaryService, MorphologyService, VocabularyService
@@ -443,7 +444,7 @@ class TestNavigation:
         """Test next page navigation in single page mode."""
         controller.current_volume = sample_volume
         controller.current_page_number = 0
-        controller.view_mode = "single"
+        controller.view_mode = SINGLE_PAGE_MODE
         
         controller.next_page()
         
@@ -508,27 +509,27 @@ class TestViewMode:
     def test_change_to_double_mode(self, controller, sample_volume, mock_canvas):
         """Test changing to double page mode."""
         controller.current_volume = sample_volume
-        controller.view_mode = "single"
+        controller.view_mode = SINGLE_PAGE_MODE
         
         controller.handle_view_mode_changed("double")
         
-        assert controller.view_mode == "double"
+        assert controller.view_mode.name == "double"
         mock_canvas.render_pages.assert_called()
 
     def test_change_to_single_mode(self, controller, sample_volume, mock_canvas):
         """Test changing to single page mode."""
         controller.current_volume = sample_volume
-        controller.view_mode = "double"
+        controller.view_mode = DOUBLE_PAGE_MODE
         
         controller.handle_view_mode_changed("single")
         
-        assert controller.view_mode == "single"
+        assert controller.view_mode.name == "single"
         mock_canvas.render_pages.assert_called()
 
     def test_invalid_view_mode_ignored(self, controller, sample_volume):
         """Test that invalid view modes are ignored."""
-        controller.view_mode = "single"
+        controller.view_mode = SINGLE_PAGE_MODE
         
         controller.handle_view_mode_changed("invalid")
         
-        assert controller.view_mode == "single"
+        assert controller.view_mode.name == "single"
