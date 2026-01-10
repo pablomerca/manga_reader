@@ -40,7 +40,7 @@ class MangaViewer {
         // Initialize modules with DOM elements
         this.panController = new PanController(this.viewportEl);
         this.layoutManager = new LayoutManager(this.viewportEl, this.wrapperEl);
-        this.pageRenderer = new PageRenderer(this.textFormatter);
+        // pageRenderer is created when the channel bridge is ready (see initChannel)
         this.popupManager = new PopupManager(this.viewportEl, this.textFormatter, this.channelBridge);
 
         // Initialize event router with callbacks
@@ -69,10 +69,8 @@ class MangaViewer {
 
     initChannel() {
         this.channelBridge.initialize((connector) => {
-            // Set bridge on pageRenderer for block clicks
-            if (this.pageRenderer) {
-                this.pageRenderer.setBridge(connector);
-            }
+            // Construct page renderer once the bridge is ready
+            this.pageRenderer = new PageRenderer(this.textFormatter, connector);
         });
     }
 
@@ -129,6 +127,9 @@ class MangaViewer {
 
     renderPages(data) {
         if (!this.wrapperEl) return;
+        if (!this.pageRenderer) {
+            throw new Error("PageRenderer not initialized; bridge not ready");
+        }
         this.wrapperEl.innerHTML = "";
 
         const pages = data.pages;

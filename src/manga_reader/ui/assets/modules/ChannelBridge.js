@@ -30,6 +30,23 @@ export class ChannelBridge {
                 }
                 
                 console.log("Bridge object found:", this.connector);
+                
+                // Validate that all required methods are present and are functions
+                const requiredMethods = [
+                    'requestWordLookup',
+                    'requestNavigation',
+                    'blockClicked',
+                    'trackWord',
+                    'viewWordContext'
+                ];
+                
+                for (const method of requiredMethods) {
+                    if (typeof this.connector[method] !== 'function') {
+                        throw new Error(`Bridge connector missing required method: ${method}`);
+                    }
+                }
+                
+                console.log("All required bridge methods validated.");
                 this.isConnected = true;
                 
                 if (this.onConnectedCallback) {
@@ -50,9 +67,7 @@ export class ChannelBridge {
      * @param {number} y - Click Y coordinate
      */
     requestWordLookup(lemma, surface, x, y, pageIndex, blockId) {
-        if (this.connector && typeof this.connector.requestWordLookup === "function") {
-            this.connector.requestWordLookup(lemma, surface, x, y, pageIndex, blockId, () => {});
-        }
+        this.connector.requestWordLookup(lemma, surface, x, y, pageIndex, blockId, () => {});
     }
 
     /**
@@ -61,9 +76,7 @@ export class ChannelBridge {
      * @param {string} direction - Navigation direction ("next" or "prev")
      */
     requestNavigation(direction) {
-        if (this.connector && typeof this.connector.requestNavigation === "function") {
-            this.connector.requestNavigation(direction, () => {});
-        }
+        this.connector.requestNavigation(direction, () => {});
     }
 
     /**
@@ -72,9 +85,7 @@ export class ChannelBridge {
      * @param {string} blockId - Block identifier
      */
     blockClicked(blockId) {
-        if (this.connector && typeof this.connector.blockClicked === "function") {
-            this.connector.blockClicked(blockId, () => {});
-        }
+        this.connector.blockClicked(blockId, () => {});
     }
 
     /**
@@ -85,9 +96,7 @@ export class ChannelBridge {
      * @param {string} partOfSpeech - Part of speech tag
      */
     trackWord(lemma, reading, partOfSpeech) {
-        if (this.connector && typeof this.connector.trackWord === "function") {
-            this.connector.trackWord(lemma, reading, partOfSpeech, () => {});
-        }
+        this.connector.trackWord(lemma, reading, partOfSpeech, () => {});
     }
 
     /**
@@ -96,9 +105,7 @@ export class ChannelBridge {
      * @param {string} lemma - Dictionary base form
      */
     viewWordContext(lemma) {
-        if (this.connector && typeof this.connector.viewWordContext === "function") {
-            this.connector.viewWordContext(lemma, () => {});
-        }
+        this.connector.viewWordContext(lemma, () => {});
     }
 
     /**

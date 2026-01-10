@@ -5,17 +5,11 @@
  * Depends on TextFormatter for word wrapping.
  */
 export class PageRenderer {
-    constructor(textFormatter, bridge = null) {
+    constructor(textFormatter, bridge) {
+        if (!bridge) {
+            throw new Error("PageRenderer requires a QWebChannel bridge");
+        }
         this.textFormatter = textFormatter;
-        this.bridge = bridge;
-    }
-
-    /**
-     * Set the QWebChannel bridge for block click events.
-     * 
-     * @param {Object} bridge - QWebChannel bridge object
-     */
-    setBridge(bridge) {
         this.bridge = bridge;
     }
 
@@ -60,11 +54,9 @@ export class PageRenderer {
         el.style.width = block.width + "px";
         el.style.height = block.height + "px";
 
-        // Attach click handler if bridge is available
+        // Attach click handler; bridge validated at construction
         el.onclick = () => {
-            if (this.bridge && typeof this.bridge.blockClicked === "function") {
-                this.bridge.blockClicked(block.id, () => {});
-            }
+            this.bridge.blockClicked(block.id, () => {});
         };
 
         if (block.lines) {
