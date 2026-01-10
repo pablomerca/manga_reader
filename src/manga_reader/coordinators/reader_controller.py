@@ -428,7 +428,12 @@ class ReaderController(QObject):
             self.main_window.show_context_panel()
             
             # Switch to single page mode if in double page mode
+            # IMPORTANT: Navigate to the page where the word was clicked before switching modes
             if self.view_mode == "double":
+                # If we have a stored clicked page index, navigate to it first
+                # This ensures we show the correct page when switching from double to single
+                if self.last_clicked_page_index is not None and self.last_clicked_page_index != self.current_page_number:
+                    self.current_page_number = self.last_clicked_page_index
                 self.view_mode = "single"
                 self._render_current_page()
                 
@@ -453,7 +458,7 @@ class ReaderController(QObject):
     def _on_appearance_selected(self, word_id: int, appearance_id: int, page_index: int):
         """
         Handle when user selects an appearance in the context panel.
-        Navigate to that page.
+        Navigate to that page, ensuring it appears on the left in double-page mode.
         
         Args:
             word_id: The word ID (for future use)
@@ -464,11 +469,41 @@ class ReaderController(QObject):
             return
         
         # Validate page index
-        if 0 <= page_index < self.current_volume.total_pages:
-            self.current_page_number = page_index
-            self._render_current_page()
-        else:
+        if not (0 <= page_index < self.current_volume.total_pages):
             self.main_window.show_error(
                 "Invalid Page",
                 f"Page {page_index + 1} is not available in this volume."
             )
+            return
+        
+        # In double-page mode, pages are rendered as [current, current+1]
+        # but displayed in RTL order as [current+1 (left), current (right)]
+        # So to show a specific page on the LEFT, we need to set current_page_number
+        # to (page_index - 1) when in double mode
+        if self.view_mode == "double":
+            # Check if the target page is portrait and can be paired
+            target_page = self.current_volume.get_page(page_index)
+            if target_page and target_page.is_portrait():
+                # To show page_index on the LEFT side of a double spread,
+                # we need to render [page_index-1, page_index]
+                # which will display as [page_index (left), page_index-1 (right)]
+                if page_index > 0:
+                    prev_page = self.current_volume.get_page(page_index - 1)
+                    # Only shift if previous page is also portrait
+                    if prev_page and prev_page.is_portrait():
+                        self.current_page_number = page_index - 1
+                    else:
+                        # Previous page is landscape or doesn't exist, 
+                        # so target page will be on the right side of its spread
+                        self.current_page_number = page_index
+                else:
+                    # First page, will always be on right
+                    self.current_page_number = page_index
+            else:
+                # Landscape page, shown alone
+                self.current_page_number = page_index
+        else:
+            # Single page mode, just navigate normally
+            self.current_page_number = page_index
+        
+        self._render_current_page()
