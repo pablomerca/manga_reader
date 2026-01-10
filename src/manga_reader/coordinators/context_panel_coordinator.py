@@ -9,6 +9,8 @@ from manga_reader.services import VocabularyService
 from manga_reader.ui import MainWindow, WordContextPanel
 
 from .view_modes import ViewMode
+from .word_interaction_coordinator import WordInteractionCoordinator
+
 
 
 class ContextPanelCoordinator(QObject):
@@ -32,12 +34,14 @@ class ContextPanelCoordinator(QObject):
         context_panel: WordContextPanel,
         vocabulary_service: VocabularyService,
         main_window: MainWindow,
+        word_interaction: WordInteractionCoordinator,
     ):
         super().__init__()
 
         self.context_panel = context_panel
         self.vocabulary_service = vocabulary_service
         self.main_window = main_window
+        self.word_interaction = word_interaction
 
         # Previous state for restoration
         self.previous_view_mode_name: str = "single"
@@ -172,10 +176,12 @@ class ContextPanelCoordinator(QObject):
         if self._view_mode is None:
             return
 
-        current_before_context = self._current_page
+        # The word must have been clicked to reach this point, so last_clicked_page_index is guaranteed
+        clicked_page_index = self.word_interaction.last_clicked_page_index
+
         target_page = self._view_mode.page_for_context(
             current_page_number=self._current_page,
-            last_clicked_page_index=self._current_page,
+            last_clicked_page_index=clicked_page_index,
         )
         context_mode = self._view_mode.context_view_mode()
 

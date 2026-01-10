@@ -98,6 +98,7 @@ def controller(mock_main_window, mock_canvas, mock_ingestor,
         context_panel=mock_context_panel,
         vocabulary_service=mock_vocabulary_service,
         main_window=mock_main_window,
+        word_interaction=word_coord,
     )
     ctrl = ReaderController(
         main_window=mock_main_window,

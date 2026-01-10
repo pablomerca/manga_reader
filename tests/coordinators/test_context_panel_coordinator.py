@@ -62,10 +62,17 @@ def mock_main_window():
 @pytest.fixture
 def coordinator(mock_context_panel, mock_vocabulary_service, mock_main_window):
     """Create a ContextPanelCoordinator with mocked dependencies."""
+    from manga_reader.coordinators import WordInteractionCoordinator
+    
+    # Create a mock word interaction coordinator
+    word_interaction = MagicMock(spec=WordInteractionCoordinator)
+    word_interaction.last_clicked_page_index = 0
+    
     return ContextPanelCoordinator(
         context_panel=mock_context_panel,
         vocabulary_service=mock_vocabulary_service,
         main_window=mock_main_window,
+        word_interaction=word_interaction,
     )
 
 
@@ -356,3 +363,47 @@ class TestSessionContextManagement:
         
         assert coordinator.previous_view_mode_name == "double"
         assert coordinator.previous_page_number == 3
+    def test_context_view_uses_clicked_page_not_current_page_double_mode(self, mock_context_panel, mock_vocabulary_service, mock_main_window, sample_volume):
+        """
+        Test that context panel uses the actual clicked page, not current page.
+        This is the fix for the double-page mode bug where clicking a word on the 
+        left page would show context for the right page instead.
+        
+        Scenario:
+        - In double-page mode showing pages 0 (left) and 1 (right)
+        - User clicks a word on page 0 (left)
+        - When viewing context, it should show page 0, not page 1
+        """
+        from manga_reader.coordinators import WordInteractionCoordinator
+        
+        # Create a mock word interaction coordinator that has a clicked page
+        word_interaction = MagicMock(spec=WordInteractionCoordinator)
+        word_interaction.last_clicked_page_index = 0  # User clicked on left page (page 0)
+        
+        # Create coordinator with word_interaction
+        coordinator = ContextPanelCoordinator(
+            context_panel=mock_context_panel,
+            vocabulary_service=mock_vocabulary_service,
+            main_window=mock_main_window,
+            word_interaction=word_interaction,
+        )
+        
+        # Simulate being in double-page mode at page 0 (showing pages 0 and 1)
+        coordinator.set_session_context(sample_volume, DOUBLE_PAGE_MODE, 0)
+        
+        # Capture the emitted signal
+        mock_signal = MagicMock()
+        coordinator.view_mode_change_requested = mock_signal
+        
+        # Request context view adjustment
+        coordinator._request_context_view_adjustment()
+        
+        # Verify that the target page is 0 (where word was clicked), not 1
+        # When switching to single page mode from double, page_for_context should use
+        # the clicked page index, not the current display page
+        called_args = mock_signal.emit.call_args
+        # Arguments are (mode_name, target_page)
+        target_page = called_args[0][1]
+        
+        assert target_page == 0, f"Expected target page 0 (left page), got {target_page}"
+        assert called_args[0][0] == "single", "Should switch to single page mode"

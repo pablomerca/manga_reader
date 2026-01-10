@@ -65,6 +65,7 @@ def main():
         context_panel=context_panel,
         vocabulary_service=vocabulary_service,
         main_window=main_window,
+        word_interaction=word_interaction,
     )
     
     # Create library coordinator (pass to reader controller)
