@@ -38,8 +38,7 @@ class ReaderController(QObject):
         self.current_volume: MangaVolume | None = None
         self.current_page_number: int = 0
         self.view_mode: str = "single"  # "single" or "double"
-        self.previous_view_mode: str = "single"  # For restoring when context closes
-        self.context_panel_active: bool = False  # Track if context panel is open
+        self.previous_view_mode: str = "single"  # For restoring when context closes        self.previous_page_number: int = 0  # For restoring page when context closes from double mode        self.context_panel_active: bool = False  # Track if context panel is open
         
         # Store context of the last clicked word for tracking
         self.last_clicked_lemma: str | None = None
@@ -420,8 +419,9 @@ class ReaderController(QObject):
                 appearances=appearances
             )
             
-            # Save current view mode and switch to single page for context panel
+            # Save current view mode and page number for restoration
             self.previous_view_mode = self.view_mode
+            self.previous_page_number = self.current_page_number  # Save original page before navigating
             self.context_panel_active = True
             
             # Show the context panel
@@ -449,8 +449,11 @@ class ReaderController(QObject):
         self.context_panel_active = False
         self.main_window.hide_context_panel()
         
-        # Restore previous view mode if it was different
+        # Restore previous view mode and page number if they were different
         if self.view_mode != self.previous_view_mode:
+            # Restore the original page number before we entered context mode
+            # This prevents page shift when returning to double-page mode
+            self.current_page_number = self.previous_page_number
             self.view_mode = self.previous_view_mode
             self._render_current_page()
     
