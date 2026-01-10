@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from .manga_page import MangaPage
 
@@ -20,11 +20,15 @@ class MangaVolume:
         """Returns the total number of pages in this volume."""
         return len(self.pages)
     
-    def get_page(self, page_number: int) -> Optional[MangaPage]:
-        """Retrieve a specific page by its number (0-indexed)."""
+    def get_page(self, page_number: int) -> MangaPage:
+        """Retrieve a specific page by its number (0-indexed).
+
+        Raises:
+            ValueError: if page_number is out of bounds.
+        """
         if 0 <= page_number < self.total_pages:
             return self.pages[page_number]
-        return None
+        raise ValueError(f"Page index {page_number} out of bounds for volume '{self.title}' with {self.total_pages} pages")
     
     def add_page(self, page: MangaPage) -> None:
         """Add a page to this volume."""
@@ -32,7 +36,7 @@ class MangaVolume:
     
     def validate_coordinates(self, page_number: int, x: float, y: float) -> bool:
         """Validate if coordinates are within a page's bounds."""
+        if not (0 <= page_number < self.total_pages):
+            return False
         page = self.get_page(page_number)
-        if page:
-            return 0 <= x <= page.width and 0 <= y <= page.height
-        return False
+        return 0 <= x <= page.width and 0 <= y <= page.height

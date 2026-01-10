@@ -8,6 +8,13 @@ from typing import List
 from manga_reader.core import MangaPage, MangaVolume
 
 
+def _require_volume(volume: MangaVolume | None) -> MangaVolume:
+    """Ensure a volume instance is provided, otherwise fail fast."""
+    if volume is None:
+        raise ValueError("Volume is required for view mode operations")
+    return volume
+
+
 class ViewMode(ABC):
     """State interface for view modes (single vs double)."""
 
@@ -16,7 +23,7 @@ class ViewMode(ABC):
     @abstractmethod
     def pages_to_render(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         current_page_number: int,
     ) -> List[MangaPage]:
         """Return the list of pages to render for the current index."""
@@ -24,7 +31,7 @@ class ViewMode(ABC):
     @abstractmethod
     def next_page_number(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         current_page_number: int,
     ) -> int:
         """Return the page index to navigate to when moving forward."""
@@ -32,14 +39,14 @@ class ViewMode(ABC):
     @abstractmethod
     def previous_page_number(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         current_page_number: int,
     ) -> int:
         """Return the page index to navigate to when moving backward."""
 
     def page_for_appearance(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         target_page_index: int,
         current_page_number: int,
     ) -> int:
@@ -64,32 +71,29 @@ class SinglePageMode(ViewMode):
 
     def pages_to_render(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         current_page_number: int,
     ) -> List[MangaPage]:
-        if volume is None:
-            return []
-        page = volume.get_page(current_page_number)
-        return [page] if page else []
+        vol = _require_volume(volume)
+        page = vol.get_page(current_page_number)
+        return [page]
 
     def next_page_number(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         current_page_number: int,
     ) -> int:
-        if volume is None:
-            return current_page_number
-        if current_page_number + 1 < volume.total_pages:
+        vol = _require_volume(volume)
+        if current_page_number + 1 < vol.total_pages:
             return current_page_number + 1
         return current_page_number
 
     def previous_page_number(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         current_page_number: int,
     ) -> int:
-        if volume is None:
-            return current_page_number
+        vol = _require_volume(volume)
         if current_page_number > 0:
             return current_page_number - 1
         return current_page_number
@@ -100,26 +104,21 @@ class DoublePageMode(ViewMode):
 
     def pages_to_render(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         current_page_number: int,
     ) -> List[MangaPage]:
-        if volume is None:
-            return []
-        current_page = volume.get_page(current_page_number)
-        if not current_page:
-            return []
+        vol = _require_volume(volume)
+        current_page = vol.get_page(current_page_number)
 
         # Landscape pages render alone
         if not current_page.is_portrait():
             return [current_page]
 
         # Last page renders alone
-        if current_page_number >= volume.total_pages - 1:
+        if current_page_number >= vol.total_pages - 1:
             return [current_page]
 
-        next_page = volume.get_page(current_page_number + 1)
-        if not next_page:
-            return [current_page]
+        next_page = vol.get_page(current_page_number + 1)
 
         # Pair portrait pages; otherwise render only current
         if next_page.is_portrait():
@@ -128,55 +127,57 @@ class DoublePageMode(ViewMode):
 
     def next_page_number(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         current_page_number: int,
     ) -> int:
-        if volume is None:
-            return current_page_number
-        pages_displayed = len(self.pages_to_render(volume, current_page_number))
+
+        vol = _require_volume(volume)
+        pages_displayed = len(self.pages_to_render(vol, current_page_number))
         next_index = current_page_number + pages_displayed
-        if next_index < volume.total_pages:
+        if next_index < vol.total_pages:
             return next_index
         return current_page_number
 
     def previous_page_number(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         current_page_number: int,
     ) -> int:
-        if volume is None:
-            return current_page_number
+
+        vol = _require_volume(volume)
         if current_page_number <= 0:
             return current_page_number
 
         # When possible, step back two pages if the previous spread was double portrait
         if current_page_number >= 2:
-            prev_page = volume.get_page(current_page_number - 2)
-            current_prev = volume.get_page(current_page_number - 1)
-            if prev_page and current_prev and prev_page.is_portrait() and current_prev.is_portrait():
+            if not (0 <= current_page_number - 2 < vol.total_pages):
+                return current_page_number - 1
+            prev_page = vol.get_page(current_page_number - 2)
+            current_prev = vol.get_page(current_page_number - 1)
+            if prev_page.is_portrait() and current_prev.is_portrait():
                 return current_page_number - 2
         return current_page_number - 1
 
     def page_for_appearance(
         self,
-        volume: MangaVolume | None,
+        volume: MangaVolume,
         target_page_index: int,
         current_page_number: int,
     ) -> int:
-        if volume is None:
+        vol = _require_volume(volume)
+
+        if not (0 <= target_page_index < vol.total_pages):
             return current_page_number
 
-        target_page = volume.get_page(target_page_index)
-        if not target_page:
-            return current_page_number
+        target_page = vol.get_page(target_page_index)
 
         if not target_page.is_portrait():
             return target_page_index
 
         # Place portrait page on the left of a spread when possible
-        if target_page_index > 0:
-            prev_page = volume.get_page(target_page_index - 1)
-            if prev_page and prev_page.is_portrait():
+        if target_page_index > 0 and (0 <= target_page_index - 1 < vol.total_pages):
+            prev_page = vol.get_page(target_page_index - 1)
+            if prev_page.is_portrait():
                 return target_page_index - 1
         return target_page_index
 

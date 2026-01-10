@@ -74,16 +74,19 @@ class WordInteractionCoordinator(QObject):
         self.last_clicked_block_text = None
 
         # Find the OCR block for sentence context
-        if self._current_volume is not None and self.last_clicked_page_index is not None:
+        if (
+            self._current_volume is not None
+            and self.last_clicked_page_index is not None
+            and 0 <= self.last_clicked_page_index < self._current_volume.total_pages
+        ):
             current_page = self._current_volume.get_page(self.last_clicked_page_index)
-            if current_page is not None:
-                clicked_block = None
-                if block_id is not None and block_id >= 0 and block_id < len(current_page.ocr_blocks):
-                    clicked_block = current_page.ocr_blocks[block_id]
-                else:
-                    clicked_block = current_page.find_block_at_position(mouse_x, mouse_y)
-                if clicked_block is not None:
-                    self.last_clicked_block_text = clicked_block.full_text
+            clicked_block = None
+            if block_id is not None and block_id >= 0 and block_id < len(current_page.ocr_blocks):
+                clicked_block = current_page.ocr_blocks[block_id]
+            else:
+                clicked_block = current_page.find_block_at_position(mouse_x, mouse_y)
+            if clicked_block is not None:
+                self.last_clicked_block_text = clicked_block.full_text
 
         entry = self.dictionary_service.lookup(lemma, surface)
 
@@ -124,9 +127,9 @@ class WordInteractionCoordinator(QObject):
             if self.last_clicked_page_index is not None
             else self._current_page
         )
-        current_page = self._current_volume.get_page(page_index)
-        if not current_page:
+        if not (0 <= page_index < self._current_volume.total_pages):
             return
+        current_page = self._current_volume.get_page(page_index)
 
         # Prefer the stored block text for accurate sentence context
         if self.last_clicked_block_text:
