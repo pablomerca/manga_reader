@@ -86,18 +86,46 @@ body {
     transition: background-color 0.15s ease-out, box-shadow 0.15s ease-out;
     padding: 2px 4px;
     border-radius: 2px;
-    background-color: transparent;
 }
 
-.word:hover,
+/* Base highlighting for nouns (yellow) */
+.word--noun {
+    background-color: rgba(255, 235, 59, 0.3);
+}
+
 .word--noun:hover {
     background-color: #ffeb3b;
     box-shadow: 0 0 4px rgba(255, 235, 59, 0.7);
 }
 
+/* Base highlighting for verbs (light blue) */
+.word--verb {
+    background-color: rgba(179, 229, 255, 0.3);
+}
+
 .word--verb:hover {
     background-color: #b3e5ff;
     box-shadow: 0 0 4px rgba(179, 229, 255, 0.7);
+}
+
+/* Base highlighting for adjectives (green) */
+.word--adjective {
+    background-color: rgba(129, 199, 132, 0.3);
+}
+
+.word--adjective:hover {
+    background-color: #81c784;
+    box-shadow: 0 0 4px rgba(129, 199, 132, 0.7);
+}
+
+/* Also handle adjectival nouns with same green styling */
+.word--adjectival_noun {
+    background-color: rgba(129, 199, 132, 0.3);
+}
+
+.word--adjectival_noun:hover {
+    background-color: #81c784;
+    box-shadow: 0 0 4px rgba(129, 199, 132, 0.7);
 }
 
 /* Dictionary popup styling */

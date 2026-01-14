@@ -141,4 +141,18 @@ class MorphologyService:
         """
         return self.extract_words(text, ("VERB", "AUXILIARY_VERB"))
 
+    def extract_adjectives(self, text: str) -> List[Token]:
+        """
+        Extract adjective tokens from Japanese text.
+
+        Includes i-adjectives and na-adjectives (adjectival nouns).
+
+        Args:
+            text: Raw Japanese text
+
+        Returns:
+            List of Token objects filtered to adjectives only
+        """
+        return self.extract_words(text, ("ADJECTIVE", "ADJECTIVAL_NOUN"))
+
 

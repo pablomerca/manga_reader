@@ -194,6 +194,41 @@ class TestExtractVerbs:
         assert verbs == []
 
 
+class TestExtractAdjectives:
+    """Tests for MorphologyService.extract_adjectives() method."""
+
+    def test_extract_adjectives_filters_correctly(self, morphology_service):
+        """extract_adjectives returns only adjectives or adjectival nouns."""
+        text = "大きい猫、静かな部屋"
+        adjectives = morphology_service.extract_adjectives(text)
+
+        assert all(a.pos in ("ADJECTIVE", "ADJECTIVAL_NOUN") for a in adjectives)
+
+    def test_extract_adjectives_handles_i_adjectives(self, morphology_service):
+        """Extract i-adjectives (e.g., 大きい)."""
+        text = "大きい"
+        adjectives = morphology_service.extract_adjectives(text)
+
+        assert len(adjectives) > 0
+        assert any(a.surface == "大きい" for a in adjectives)
+
+    def test_extract_adjectives_handles_na_adjectives(self, morphology_service):
+        """Extract na-adjectives (e.g., 静か in 静かな)."""
+        text = "静かな"
+        adjectives = morphology_service.extract_adjectives(text)
+
+        # 静かな typically tokenizes as 静か (ADJECTIVAL_NOUN) + な (auxiliary)
+        # We should find 静か with ADJECTIVAL_NOUN POS
+        assert any(a.pos == "ADJECTIVAL_NOUN" for a in adjectives)
+
+    def test_extract_adjectives_empty_when_no_adjectives(self, morphology_service):
+        """Text without adjectives should return empty list."""
+        text = "猫が走った"
+        adjectives = morphology_service.extract_adjectives(text)
+
+        assert adjectives == []
+
+
 class TestTokenProperties:
     """Tests for Token dataclass properties."""
 

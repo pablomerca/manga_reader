@@ -94,3 +94,43 @@ def test_auxiliary_verb_extracted_correctly(tmp_path):
     assert len(verbs) > 0, "Should extract from 食べている"
     # The exact structure depends on Dango; we trust its lemma extraction
     assert any(v.lemma == "食べる" for v in verbs), "Should find base form 食べる"
+
+
+def test_adjective_extraction_workflow(tmp_path):
+    """Verify adjectives are extracted and highlighted separately."""
+    morphology = MorphologyService()
+    
+    # Text with adjectives
+    text = "大きい家と静かな部屋"
+    tokens = morphology.tokenize(text)
+    
+    # Extract adjectives
+    adjectives = morphology.filter_tokens_by_pos(tokens, ("ADJECTIVE", "ADJECTIVAL_NOUN"))
+    
+    assert len(adjectives) > 0, "Should find adjectives"
+    
+    # Verify i-adjective
+    assert any(a.surface == "大きい" for a in adjectives), "Should find 大きい"
+    
+    # Verify na-adjective (typically as 静か without な)
+    assert any("静" in a.surface for a in adjectives), "Should find 静かな component"
+
+
+def test_all_word_types_extracted_in_single_pass(tmp_path):
+    """Verify nouns, verbs, and adjectives are all extracted efficiently."""
+    morphology = MorphologyService()
+    
+    text = "美しい猫が静かに走った"
+    tokens = morphology.tokenize(text)
+    
+    # Single extraction call combining all POS
+    all_interested = morphology.extract_words(
+        text,
+        ("NOUN", "NAME", "PLACE_NAME", "PRONOUN", "VERB", "AUXILIARY_VERB", "ADJECTIVE", "ADJECTIVAL_NOUN")
+    )
+    
+    assert len(all_interested) > 0
+    
+    # Verify we have multiple types
+    pos_types = {t.pos for t in all_interested}
+    assert len(pos_types) > 1, "Should have multiple POS types"

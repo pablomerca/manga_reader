@@ -288,7 +288,8 @@ class MangaCanvas(QWidget):
         # Collect POS filters once and extract in a single pass.
         noun_pos = ("NOUN", "NAME", "PLACE_NAME", "PRONOUN")
         verb_pos = ("VERB", "AUXILIARY_VERB")
-        interested_pos = noun_pos + verb_pos
+        adjective_pos = ("ADJECTIVE", "ADJECTIVAL_NOUN")
+        interested_pos = noun_pos + verb_pos + adjective_pos
 
         return self.morphology_service.extract_words(text, interested_pos)
 
