@@ -94,7 +94,10 @@ class WordInteractionCoordinator(QObject):
         is_tracked = self.vocabulary_service.is_word_tracked(lemma)
 
         payload = {
-            "surface": surface or lemma,
+            # Normalize display to lemma so popup header shows base form (not conjugated surface)
+            "surface": lemma or surface,
+            # Preserve original clicked surface for future UI use if needed
+            "surfaceOriginal": surface,
             "reading": entry.reading if entry else "",
             "partOfSpeech": entry.senses[0].pos[0] if entry and entry.senses and entry.senses[0].pos else "Unknown",
             "senses": [
