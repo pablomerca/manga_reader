@@ -33,7 +33,10 @@ export class TextFormatter {
             // Add the word with span
             const wordText = text.substring(word.start, word.end);
             const escapedLemma = this.escapeAttr(word.lemma);
-            result += `<span class="word" data-lemma="${escapedLemma}">${this.escapeHtml(wordText)}</span>`;
+            const pos = word.pos || "unknown";
+            const posClass = `word--${pos.toLowerCase()}`;
+            const escapedPos = this.escapeAttr(pos);
+            result += `<span class="word ${posClass}" data-lemma="${escapedLemma}" data-pos="${escapedPos}">${this.escapeHtml(wordText)}</span>`;
 
             lastIndex = word.end;
         }

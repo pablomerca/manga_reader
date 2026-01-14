@@ -169,6 +169,31 @@ class TestExtractNouns:
             )
 
 
+class TestExtractVerbs:
+    """Tests for MorphologyService.extract_verbs() method."""
+
+    def test_extract_verbs_filters_correctly(self, morphology_service):
+        """extract_verbs returns only verbs or auxiliary verbs."""
+        text = "猫が走った。食べている。"
+        verbs = morphology_service.extract_verbs(text)
+
+        assert all(v.pos in ("VERB", "AUXILIARY_VERB") for v in verbs)
+
+    def test_extract_verbs_handles_conjugations(self, morphology_service):
+        """Conjugated verbs should report lemma in dictionary form."""
+        text = "食べました"
+        verbs = morphology_service.extract_verbs(text)
+
+        assert any(v.lemma == "食べる" for v in verbs)
+
+    def test_extract_verbs_empty_when_no_verbs(self, morphology_service):
+        """Text without verbs should return empty list."""
+        text = "猫と犬"
+        verbs = morphology_service.extract_verbs(text)
+
+        assert verbs == []
+
+
 class TestTokenProperties:
     """Tests for Token dataclass properties."""
 

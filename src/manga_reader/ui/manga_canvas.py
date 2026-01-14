@@ -221,12 +221,13 @@ class MangaCanvas(QWidget):
                 "height": block.height,
                 "fontSize": font_size,
                 "lines": block.text_lines,
-                "words": [  # Metadata for JavaScript highlight wrapping (currently nouns, extensible to other POS)
+                "words": [  # Metadata for JavaScript highlight wrapping (nouns + verbs)
                     {
                         "surface": token.surface,
                         "lemma": token.lemma,
                         "start": token.start_offset,
                         "end": token.end_offset,
+                        "pos": token.pos,
                     }
                     for token in words
                 ],
@@ -274,19 +275,22 @@ class MangaCanvas(QWidget):
     def _extract_block_words(self, text: str):
         """
         Extract words from OCR block text using morphology service.
-        Currently extracts nouns; will be extended to other parts of speech.
-        
+
         Args:
             text: Full text from OCR block
-            
+
         Returns:
-            List of Token objects representing words of interest (currently nouns)
+            List of Token objects representing words of interest (nouns + verbs)
         """
-        if not text or not self.morphology_service:
+        if not text:
             return []
-        
-        # Currently only extracting nouns; future: expand to verbs, adjectives, etc.
-        return self.morphology_service.extract_nouns(text)
+
+        # Collect POS filters once and extract in a single pass.
+        noun_pos = ("NOUN", "NAME", "PLACE_NAME", "PRONOUN")
+        verb_pos = ("VERB", "AUXILIARY_VERB")
+        interested_pos = noun_pos + verb_pos
+
+        return self.morphology_service.extract_words(text, interested_pos)
 
     def clear(self):
         """Clear the canvas."""

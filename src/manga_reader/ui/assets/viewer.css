@@ -89,9 +89,15 @@ body {
     background-color: transparent;
 }
 
-.word:hover {
+.word:hover,
+.word--noun:hover {
     background-color: #ffeb3b;
     box-shadow: 0 0 4px rgba(255, 235, 59, 0.7);
+}
+
+.word--verb:hover {
+    background-color: #b3e5ff;
+    box-shadow: 0 0 4px rgba(179, 229, 255, 0.7);
 }
 
 /* Dictionary popup styling */

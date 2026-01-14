@@ -1,7 +1,7 @@
 """Morphology Service - tokenization and noun extraction for Japanese text."""
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Iterable, List, Optional, Sequence
 
 import dango
 from dango.word import PartOfSpeech
@@ -92,6 +92,28 @@ class MorphologyService:
 
         return tokens
 
+    def filter_tokens_by_pos(self, tokens: Sequence[Token], allowed_pos: Iterable[str]) -> List[Token]:
+        """Return tokens whose POS is in allowed_pos."""
+        if not tokens:
+            return []
+
+        allowed = set(allowed_pos)
+        return [token for token in tokens if token.pos in allowed]
+
+    def extract_words(self, text: str, allowed_pos: Iterable[str]) -> List[Token]:
+        """
+        Tokenize once and filter by allowed POS values.
+
+        Args:
+            text: Raw Japanese text
+            allowed_pos: Iterable of POS names to keep
+
+        Returns:
+            List of Token objects whose POS is in allowed_pos
+        """
+        tokens = self.tokenize(text)
+        return self.filter_tokens_by_pos(tokens, allowed_pos)
+
     def extract_nouns(self, text: str) -> List[Token]:
         """
         Extract noun tokens from Japanese text.
@@ -105,15 +127,18 @@ class MorphologyService:
         Returns:
             List of Token objects filtered to nouns only
         """
-        all_tokens = self.tokenize(text)
+        return self.extract_words(text, ("NOUN", "NAME", "PLACE_NAME", "PRONOUN"))
 
-        # Filter to nouns: POS is "NOUN", "NAME", "PLACE_NAME", or "PRONOUN"
-        nouns = [
-            token
-            for token in all_tokens
-            if token.pos in ("NOUN", "NAME", "PLACE_NAME", "PRONOUN")
-        ]
+    def extract_verbs(self, text: str) -> List[Token]:
+        """
+        Extract verb tokens (including auxiliary verbs) from Japanese text.
 
-        return nouns
+        Args:
+            text: Raw Japanese text
+
+        Returns:
+            List of Token objects filtered to verbs only
+        """
+        return self.extract_words(text, ("VERB", "AUXILIARY_VERB"))
 
 
