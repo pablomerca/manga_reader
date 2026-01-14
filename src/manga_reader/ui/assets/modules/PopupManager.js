@@ -204,13 +204,12 @@ export class PopupManager {
         if (!this.currentPayload || !this.channel) return;
 
         const payload = this.currentPayload;
-        // Extract lemma from surface (for MVP, use surface as lemma)
-        // In production, this should come from morphology service
-        const lemma = payload.surface || "";
+        const lemma = payload.lemma || payload.surface || "";
         const reading = payload.reading || "";
-        // Extract POS from first sense if available
-        let partOfSpeech = "Unknown";
-        if (payload.senses && payload.senses.length > 0 && payload.senses[0].pos) {
+
+        // Prefer part_of_speech from payload; fall back to first sense POS
+        let partOfSpeech = payload.partOfSpeech || "Unknown";
+        if (partOfSpeech === "Unknown" && payload.senses && payload.senses.length > 0 && payload.senses[0].pos) {
             partOfSpeech = Array.isArray(payload.senses[0].pos) 
                 ? payload.senses[0].pos[0] || "Unknown"
                 : String(payload.senses[0].pos);

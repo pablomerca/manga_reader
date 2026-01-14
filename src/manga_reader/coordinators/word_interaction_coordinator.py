@@ -96,6 +96,7 @@ class WordInteractionCoordinator(QObject):
         payload = {
             "surface": surface or lemma,
             "reading": entry.reading if entry else "",
+            "partOfSpeech": entry.senses[0].pos[0] if entry and entry.senses and entry.senses[0].pos else "Unknown",
             "senses": [
                 {"glosses": sense.glosses, "pos": sense.pos}
                 for sense in entry.senses

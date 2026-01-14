@@ -24,11 +24,10 @@ class DatabaseManager:
             """
             CREATE TABLE IF NOT EXISTS tracked_words (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                lemma TEXT NOT NULL,
+                lemma TEXT NOT NULL UNIQUE,
                 reading TEXT NOT NULL DEFAULT '',
                 part_of_speech TEXT NOT NULL DEFAULT '',
-                date_added TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(lemma, reading)
+                date_added TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
             """
         )
@@ -94,7 +93,8 @@ class DatabaseManager:
             """
             INSERT INTO tracked_words (lemma, reading, part_of_speech)
             VALUES (?, ?, ?)
-            ON CONFLICT(lemma, reading) DO UPDATE SET
+            ON CONFLICT(lemma) DO UPDATE SET
+                reading = excluded.reading,
                 part_of_speech = excluded.part_of_speech
             """,
             (lemma, reading, part_of_speech),

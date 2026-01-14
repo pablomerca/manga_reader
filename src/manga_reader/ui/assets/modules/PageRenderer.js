@@ -96,6 +96,7 @@ export class PageRenderer {
             // Adjust offsets to be relative to this line
             surface: word.surface,
             lemma: word.lemma,
+            pos: word.pos,
             start: Math.max(0, word.start - lineStart),
             end: Math.min(lineText.length, word.end - lineStart)
         });
