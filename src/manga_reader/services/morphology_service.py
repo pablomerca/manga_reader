@@ -155,4 +155,16 @@ class MorphologyService:
         """
         return self.extract_words(text, ("ADJECTIVE", "ADJECTIVAL_NOUN"))
 
+    def extract_adverbs(self, text: str) -> List[Token]:
+        """
+        Extract adverb tokens from Japanese text.
+
+        Args:
+            text: Raw Japanese text
+
+        Returns:
+            List of Token objects filtered to adverbs only
+        """
+        return self.extract_words(text, ("ADVERB",))
+
 

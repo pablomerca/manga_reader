@@ -128,6 +128,16 @@ body {
     box-shadow: 0 0 4px rgba(129, 199, 132, 0.7);
 }
 
+/* Base highlighting for adverbs (purple) */
+.word--adverb {
+    background-color: rgba(186, 104, 200, 0.3);
+}
+
+.word--adverb:hover {
+    background-color: #ba68c8;
+    box-shadow: 0 0 4px rgba(186, 104, 200, 0.7);
+}
+
 /* Dictionary popup styling */
 .dictionary-popup {
     position: fixed;

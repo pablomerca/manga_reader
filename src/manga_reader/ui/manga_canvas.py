@@ -289,7 +289,8 @@ class MangaCanvas(QWidget):
         noun_pos = ("NOUN", "NAME", "PLACE_NAME", "PRONOUN")
         verb_pos = ("VERB", "AUXILIARY_VERB")
         adjective_pos = ("ADJECTIVE", "ADJECTIVAL_NOUN")
-        interested_pos = noun_pos + verb_pos + adjective_pos
+        adverb_pos = ("ADVERB",)
+        interested_pos = noun_pos + verb_pos + adjective_pos + adverb_pos
 
         return self.morphology_service.extract_words(text, interested_pos)
 

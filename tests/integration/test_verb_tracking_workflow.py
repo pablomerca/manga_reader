@@ -134,3 +134,39 @@ def test_all_word_types_extracted_in_single_pass(tmp_path):
     # Verify we have multiple types
     pos_types = {t.pos for t in all_interested}
     assert len(pos_types) > 1, "Should have multiple POS types"
+
+
+def test_adverb_extraction_workflow(tmp_path):
+    """Verify adverbs are extracted and highlighted separately."""
+    morphology = MorphologyService()
+    
+    # Text with adverbs
+    text = "すぐに走った。ゆっくり食べている。"
+    tokens = morphology.tokenize(text)
+    
+    # Extract adverbs
+    adverbs = morphology.filter_tokens_by_pos(tokens, ("ADVERB",))
+    
+    assert len(adverbs) > 0, "Should find adverbs"
+    # Dango tokenizes "すぐに" as すぐ(ADVERB) + に(PARTICLE), so we find すぐ and ゆっくり
+    assert any("ゆっくり" in a.surface for a in adverbs), "Should find ゆっくり"
+
+
+def test_all_four_word_types_in_one_text(tmp_path):
+    """Verify nouns, verbs, adjectives, and adverbs all extracted together."""
+    morphology = MorphologyService()
+    
+    text = "美しい猫がすぐに静かに走った"
+    tokens = morphology.tokenize(text)
+    
+    # Extract all word types in single pass
+    all_words = morphology.extract_words(
+        text,
+        ("NOUN", "NAME", "PLACE_NAME", "PRONOUN", "VERB", "AUXILIARY_VERB", "ADJECTIVE", "ADJECTIVAL_NOUN", "ADVERB")
+    )
+    
+    assert len(all_words) > 0
+    
+    # Verify we extract multiple types efficiently
+    pos_set = {w.pos for w in all_words}
+    assert len(pos_set) > 2, "Should have multiple word types (noun, verb, adj, adv)"

@@ -229,6 +229,32 @@ class TestExtractAdjectives:
         assert adjectives == []
 
 
+class TestExtractAdverbs:
+    """Tests for MorphologyService.extract_adverbs() method."""
+
+    def test_extract_adverbs_filters_correctly(self, morphology_service):
+        """extract_adverbs returns only adverbs."""
+        text = "すぐに走った。ゆっくり食べている。"
+        adverbs = morphology_service.extract_adverbs(text)
+
+        assert all(a.pos == "ADVERB" for a in adverbs)
+
+    def test_extract_adverbs_finds_common_adverbs(self, morphology_service):
+        """Extract common adverbs like ゆっくり."""
+        text = "ゆっくり"
+        adverbs = morphology_service.extract_adverbs(text)
+
+        assert len(adverbs) > 0
+        assert any(a.surface == "ゆっくり" for a in adverbs)
+
+    def test_extract_adverbs_empty_when_no_adverbs(self, morphology_service):
+        """Text without adverbs should return empty list."""
+        text = "猫が走った"
+        adverbs = morphology_service.extract_adverbs(text)
+
+        assert adverbs == []
+
+
 class TestTokenProperties:
     """Tests for Token dataclass properties."""
 
