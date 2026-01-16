@@ -278,3 +278,10 @@ body {
     font-size: 14px;
     color: #9fb3c9;
 }
+
+/* Tracked word styling - thin border, enhanced brightness, and font weight */
+.word.tracked-word {
+    /* border: 2px solid red; */
+    /* filter: brightness(2); */
+    font-weight: 650;
+}

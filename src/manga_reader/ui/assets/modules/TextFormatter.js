@@ -36,7 +36,9 @@ export class TextFormatter {
             const pos = word.pos || "unknown";
             const posClass = `word--${pos.toLowerCase()}`;
             const escapedPos = this.escapeAttr(pos);
-            result += `<span class="word ${posClass}" data-lemma="${escapedLemma}" data-pos="${escapedPos}">${this.escapeHtml(wordText)}</span>`;
+            // Add tracked-word class if isTracked is true
+            const trackedClass = word.isTracked ? "tracked-word" : "";
+            result += `<span class="word ${posClass} ${trackedClass}" data-lemma="${escapedLemma}" data-pos="${escapedPos}">${this.escapeHtml(wordText)}</span>`;
 
             lastIndex = word.end;
         }
