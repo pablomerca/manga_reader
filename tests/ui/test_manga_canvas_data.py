@@ -28,7 +28,7 @@ def test_prepare_data_structure():
             ocr_blocks=[block]
         )
         
-        data = canvas._prepare_data([page])
+        data = canvas._prepare_data([page], tracked_lemmas=set())
         
         assert "pages" in data
         assert "gap" in data
@@ -66,7 +66,7 @@ def test_prepare_data_ordering_rtl():
         
         # Input order: [Page 1 (Right), Page 2 (Left)]
         # Expected visual order: [Page 2, Page 1]
-        data = canvas._prepare_data([page1, page2])
+        data = canvas._prepare_data([page1, page2], tracked_lemmas=set())
         
         assert len(data["pages"]) == 2
         # Check that the first element in the list (Visual Left) is Page 2

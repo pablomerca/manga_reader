@@ -100,6 +100,7 @@ def controller(mock_main_window, mock_canvas, mock_ingestor,
         main_window=mock_main_window,
         word_interaction=word_coord,
     )
+    mock_library_coordinator = MagicMock()
     ctrl = ReaderController(
         main_window=mock_main_window,
         canvas=mock_canvas,
@@ -107,6 +108,7 @@ def controller(mock_main_window, mock_canvas, mock_ingestor,
         word_interaction=word_coord,
         context_coordinator=context_coord,
         vocabulary_service=mock_vocabulary_service,
+        library_coordinator=mock_library_coordinator,
     )
     return ctrl
 
@@ -237,18 +239,21 @@ class TestHandleTrackWord:
     """Tests for the handle_track_word slot."""
 
     def test_track_word_without_open_volume(self, controller, mock_main_window):
-        """Test tracking a word when no volume is open."""
+        """Test tracking a word when no volume is open raises RuntimeError."""
         assert controller.current_volume is None
         
-        controller.handle_track_word("taberu", "たべる", "Verb")
-        
-        mock_main_window.show_error.assert_called_once()
+        import pytest as _pytest
+        with _pytest.raises(RuntimeError):
+            controller.handle_track_word("taberu", "たべる", "Verb")
 
     def test_track_word_successfully(self, controller, sample_volume, 
                                       mock_main_window):
         """Test successfully tracking a word with an open volume."""
         controller.current_volume = sample_volume
         controller.current_page_number = 0
+        # Set volume context in word interaction coordinator
+        controller.word_interaction.set_volume_context(sample_volume, 0)
+        controller.word_interaction.last_clicked_block_text = "test sentence"
         
         controller.handle_track_word("taberu", "たべる", "Verb")
         
@@ -262,6 +267,8 @@ class TestHandleTrackWord:
         """Test error handling when tracking fails."""
         controller.current_volume = sample_volume
         controller.current_page_number = 0
+        controller.word_interaction.set_volume_context(sample_volume, 0)
+        controller.word_interaction.last_clicked_block_text = "test sentence"
         
         # Mock the vocabulary service to raise an exception
         controller.word_interaction.vocabulary_service.track_word = MagicMock(
@@ -270,7 +277,10 @@ class TestHandleTrackWord:
         
         controller.handle_track_word("taberu", "たべる", "Verb")
         
+        # Verify error was shown to user
         mock_main_window.show_error.assert_called_once()
+        call_args = mock_main_window.show_error.call_args
+        assert "Tracking Failed" in call_args[0][0]
 
 
 # ============================================================================

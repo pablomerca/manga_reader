@@ -160,14 +160,15 @@ class TestHandleTrackWord:
     """Tests for word tracking."""
 
     def test_track_word_without_volume(self, coordinator, mock_main_window):
-        """Test that tracking without open volume shows error."""
-        coordinator.handle_track_word("test", "てすと", "Noun")
-        
-        mock_main_window.show_error.assert_called_once()
+        """Test that tracking without open volume raises error."""
+        import pytest
+        with pytest.raises(RuntimeError):
+            coordinator.handle_track_word("test", "てすと", "Noun")
 
     def test_track_word_successfully(self, coordinator, mock_vocabulary_service, mock_main_window, sample_volume):
         """Test successfully tracking a word."""
         coordinator.set_volume_context(sample_volume, 0)
+        coordinator.last_clicked_block_text = "test sentence"
         
         coordinator.handle_track_word("taberu", "たべる", "Verb")
         
@@ -193,6 +194,7 @@ class TestHandleTrackWord:
     def test_track_word_error_handling(self, coordinator, mock_vocabulary_service, mock_main_window, sample_volume):
         """Test error handling when tracking fails."""
         coordinator.set_volume_context(sample_volume, 0)
+        coordinator.last_clicked_block_text = "test sentence"
         mock_vocabulary_service.track_word.side_effect = Exception("DB error")
         
         coordinator.handle_track_word("test", "てすと", "Noun")
@@ -203,6 +205,7 @@ class TestHandleTrackWord:
         """Test that track_word uses the page where word was clicked."""
         coordinator.set_volume_context(sample_volume, 0)
         coordinator.last_clicked_page_index = 0  # Set from word click
+        coordinator.last_clicked_block_text = "test sentence"
         
         coordinator.handle_track_word("test", "てすと", "Noun")
         
