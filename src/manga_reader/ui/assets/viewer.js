@@ -255,6 +255,18 @@ class MangaViewer {
     markWordAsTracked() {
         this.popupManager.markWordAsTracked();
     }
+
+    /**
+     * Mark a lemma as tracked and update visual styling.
+     * Delegates to PageRenderer which owns the word element styling.
+     * 
+     * @param {string} lemma - The lemma to mark as tracked
+     */
+    markLemmaAsTracked(lemma) {
+        if (this.pageRenderer) {
+            this.pageRenderer.markLemmaAsTracked(lemma);
+        }
+    }
 }
 
 // Instantiate and expose updateView for Python
@@ -263,3 +275,4 @@ window.updateView = (data) => mangaViewer.updateView(data);
 window.showWordPopup = (payload) => mangaViewer.showWordPopup(payload);
 window.hideWordPopup = () => mangaViewer.hideWordPopup();
 window.markWordAsTracked = () => mangaViewer.markWordAsTracked();
+window.markLemmaAsTracked = (lemma) => mangaViewer.markLemmaAsTracked(lemma);

@@ -96,7 +96,7 @@ def test_add_tracked_lemma_executes_javascript(manga_canvas):
     # Verify JavaScript was called
     manga_canvas.web_view.page.return_value.runJavaScript.assert_called()
     
-    # Check that the call includes the lemma
+    # Check that the call includes the lemma and calls the tracking function
     js_code = manga_canvas.web_view.page.return_value.runJavaScript.call_args[0][0]
     assert lemma in js_code
-    assert "tracked-word" in js_code
+    assert "markLemmaAsTracked" in js_code

@@ -108,4 +108,25 @@ export class PageRenderer {
             return word.start < lineEnd && word.end > lineStart;
         };
     }
+
+    /**
+     * Mark a lemma as tracked and update visual styling.
+     * Updates all word spans with the given lemma to show tracked-word styling.
+     * 
+     * @param {string} lemma - The lemma to mark as tracked
+     */
+    markLemmaAsTracked(lemma) {
+        // Ensure tracked lemmas array exists
+        if (!window.trackedLemmas) {
+            window.trackedLemmas = [];
+        }
+        
+        // Add lemma to tracked set
+        window.trackedLemmas.push(lemma);
+        
+        // Update all word spans with this lemma to show tracked style
+        document.querySelectorAll(`[data-lemma="${lemma}"]`).forEach(el => {
+            el.classList.add('tracked-word');
+        });
+    }
 }

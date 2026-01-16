@@ -330,27 +330,15 @@ class MangaCanvas(QWidget):
         """
         self.web_view.page().runJavaScript("window.markWordAsTracked();")
 
-    # TODO: refactor, call js method (to be implemented) directly
     def add_tracked_lemma(self, lemma: str):
         """
-        Dynamically add a lemma to the tracked set and update styling.
+        Dynamically mark a lemma as tracked and update styling.
         
-        This is called when a word is newly tracked, so that all instances
-        of that lemma on the current page get the tracked-word styling
+        Calls the JavaScript function `window.markLemmaAsTracked()` to update
+        all instances of this lemma on the current page with tracked-word styling,
         without needing to re-render the entire page.
         
         Args:
             lemma: The lemma to mark as tracked
         """
-
-
-        js_code = f"""
-        if (!window.trackedLemmas) window.trackedLemmas = [];
-        window.trackedLemmas.push("{lemma}");
-        
-        // Update all word spans with this lemma to show tracked style
-        document.querySelectorAll('.word[data-lemma="{lemma}"]').forEach(el => {{
-            el.classList.add('tracked-word');
-        }});
-        """
-        self.web_view.page().runJavaScript(js_code)
+        self.web_view.page().runJavaScript(f"window.markLemmaAsTracked('{lemma}');")
