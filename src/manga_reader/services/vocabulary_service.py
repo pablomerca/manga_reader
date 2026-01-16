@@ -1,7 +1,7 @@
 """Vocabulary Service - orchestrates tracking words and appearances."""
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from manga_reader.core import TrackedWord, WordAppearance
 from manga_reader.io import DatabaseManager
@@ -46,13 +46,23 @@ class VocabularyService:
         page_index: int,
         crop_coordinates: Dict[str, float],
         sentence_text: str,
-    ) -> Tuple[TrackedWord, Optional[WordAppearance]]:
-        """Track a word and record its appearance at the given context.
+    ) -> Tuple[TrackedWord, WordAppearance]:
+        """Track a NEW word and record its first appearance.
 
-        Returns the TrackedWord and the (possibly pre-existing) WordAppearance.
+        Precondition: Word must not already be tracked (fails fast if violated).
+        
+        For adding appearances to already-tracked words, use add_appearance_if_new() instead.
+        
+        Returns:
+            Tuple of (TrackedWord, WordAppearance) - both are newly created
+            
+        Raises:
+            ValueError: If word is already tracked (precondition violation)
         """
+        
         word = self._db.upsert_tracked_word(lemma, reading, part_of_speech)
         vol = self._db.upsert_volume(volume_path)
+        
         appearance = self._db.insert_word_appearance(
             word_id=word.id,
             volume_id=vol.id,
@@ -60,7 +70,9 @@ class VocabularyService:
             crop_coordinates=crop_coordinates,
             sentence_text=sentence_text,
         )
+        
         return word, appearance
+
 
     def track_word_from_surface(
         self,
@@ -84,3 +96,62 @@ class VocabularyService:
             crop_coordinates=crop_coordinates,
             sentence_text=sentence_text,
         )
+
+    def get_all_tracked_lemmas(self) -> Set[str]:
+        """Return set of all tracked lemmas for fast lookup during rendering.
+        
+        Returns:
+            Set of lemma strings (dictionary base forms) that are currently tracked
+        """
+        tracked = self.list_tracked_words()
+        return {word.lemma for word in tracked}
+
+    def add_appearance_if_new(
+        self,
+        lemma: str,
+        volume_path: Path,
+        page_index: int,
+        crop_coordinates: Dict[str, float],
+        sentence_text: str,
+    ) -> Optional[WordAppearance]:
+        """
+        Add appearance for a tracked word if not already recorded.
+        
+        This method is used during context synchronization to discover
+        all occurrences of tracked words in a volume.
+        
+        Args:
+            lemma: The word lemma to add appearance for
+            volume_path: Path to the volume directory
+            page_index: Zero-indexed page number
+            crop_coordinates: Bounding box dict with keys: x, y, w, h
+            sentence_text: The sentence or text block containing the word
+            
+        Returns:
+            WordAppearance if added, None if already exists
+            
+        Raises:
+            ValueError: If lemma is not in tracked_words (fail-fast philosophy)
+        """
+        # Fail fast: check that lemma is tracked
+        tracked_words = self.list_tracked_words()
+        word = next((w for w in tracked_words if w.lemma == lemma), None)
+        
+        if word is None:
+            raise ValueError(f"Cannot add appearance for untracked lemma: {lemma}")
+        
+        # Insert appearance (database will raise ValueError if duplicate exists)
+        vol = self._db.upsert_volume(volume_path)
+        try:
+            appearance = self._db.insert_word_appearance(
+                word_id=word.id,
+                volume_id=vol.id,
+                page_index=page_index,
+                crop_coordinates=crop_coordinates,
+                sentence_text=sentence_text,
+            )
+            return appearance
+        except ValueError:
+            # Duplicate appearance already exists, return None
+            return None
+

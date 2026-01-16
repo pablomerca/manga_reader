@@ -4,10 +4,12 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Slot
 
+from manga_reader.coordinators.library_coordinator import LibraryCoordinator
 from manga_reader.core import MangaVolume
 from manga_reader.io import VolumeIngestor
 from typing import Optional
 
+from manga_reader.services import VocabularyService
 from manga_reader.ui import MainWindow, MangaCanvas
 from .word_interaction_coordinator import WordInteractionCoordinator
 from .context_panel_coordinator import ContextPanelCoordinator
@@ -32,19 +34,25 @@ class ReaderController(QObject):
         ingestor: VolumeIngestor,
         word_interaction: WordInteractionCoordinator,
         context_coordinator: ContextPanelCoordinator,
-        library_coordinator: Optional['LibraryCoordinator'] = None,
+        vocabulary_service: VocabularyService,
+        library_coordinator: LibraryCoordinator,
     ):
         super().__init__()
         
         self.main_window = main_window
         self.canvas = canvas
         self.ingestor = ingestor
+        self.vocabulary_service = vocabulary_service
         self.library_coordinator = library_coordinator
         # Fail fast if essential collaborators are missing
         if word_interaction is None:
             raise ValueError("WordInteractionCoordinator must not be None")
         if context_coordinator is None:
             raise ValueError("ContextPanelCoordinator must not be None")
+        if vocabulary_service is None:
+            raise ValueError("VocabularyService must not be None")
+        if library_coordinator is None:
+            raise ValueError("LibraryCoordinator must not be None")
 
         self.word_interaction = word_interaction
         self.context_coordinator = context_coordinator
@@ -123,7 +131,9 @@ class ReaderController(QObject):
             self.current_page_number,
         )
         if pages_to_render:
-            self.canvas.render_pages(pages_to_render)
+            # Fetch tracked lemmas for visual indicators
+            tracked_lemmas = self.vocabulary_service.get_all_tracked_lemmas()
+            self.canvas.render_pages(pages_to_render, tracked_lemmas=tracked_lemmas)
             # Keep coordinators in sync with current session context
             self.word_interaction.set_volume_context(self.current_volume, self.current_page_number)
             self.context_coordinator.set_session_context(self.current_volume, self.view_mode, self.current_page_number)

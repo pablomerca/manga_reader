@@ -119,11 +119,9 @@ class WordInteractionCoordinator(QObject):
     def handle_track_word(self, lemma: str, reading: str, part_of_speech: str):
         """Handle tracking a word from the dictionary popup."""
         if self._current_volume is None:
-            self.main_window.show_error(
-                "No Volume Open",
-                "Please open a manga volume before tracking words.",
-            )
-            return
+            raise RuntimeError("No volume loaded for tracking word")
+        if self.last_clicked_block_text is None:
+            raise RuntimeError("No block context available for tracking word")
 
         # Use the stored page from when the word was clicked, not current page
         page_index = (
@@ -133,13 +131,8 @@ class WordInteractionCoordinator(QObject):
         )
         if not (0 <= page_index < self._current_volume.total_pages):
             return
-        current_page = self._current_volume.get_page(page_index)
 
-        # Prefer the stored block text for accurate sentence context
-        if self.last_clicked_block_text:
-            sentence = self.last_clicked_block_text
-        else:
-            sentence = current_page.get_all_text()
+        sentence = self.last_clicked_block_text
 
         # Placeholder crop coordinates until block-based cropping is implemented
         crop_coords = {"x": 0, "y": 0, "width": 100, "height": 50}
@@ -154,6 +147,9 @@ class WordInteractionCoordinator(QObject):
                 crop_coordinates=crop_coords,
                 sentence_text=sentence,
             )
+
+            # Update UI to show tracked status (mark word with black border)
+            self.canvas.add_tracked_lemma(lemma)
 
             self.main_window.show_info(
                 "Word Tracked",

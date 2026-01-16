@@ -83,6 +83,7 @@ def main():
         ingestor=ingestor,
         word_interaction=word_interaction,
         context_coordinator=context_coordinator,
+        vocabulary_service=vocabulary_service,
         library_coordinator=library_coordinator,
     )
     

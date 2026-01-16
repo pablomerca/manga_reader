@@ -45,11 +45,12 @@ def test_insert_word_appearance_is_idempotent(manager, tmp_path):
     coords = {"x": 1, "y": 2, "width": 3, "height": 4}
 
     first = manager.insert_word_appearance(word.id, volume.id, 0, coords, "text")
-    second = manager.insert_word_appearance(word.id, volume.id, 0, coords, "text")
-
+    
+    # Second insert of same appearance should raise ValueError (duplicate)
+    with pytest.raises(ValueError, match="Word appearance already exists"):
+        manager.insert_word_appearance(word.id, volume.id, 0, coords, "text")
+    
     assert first is not None
-    assert second is not None
-    assert first.id == second.id
 
     cur = manager.connection.cursor()
     cur.execute("SELECT COUNT(*) FROM word_appearances")

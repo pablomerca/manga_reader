@@ -101,7 +101,9 @@ class TestHandleWordClicked:
         mock_canvas.show_dictionary_popup.assert_called_once()
         payload = mock_canvas.show_dictionary_popup.call_args[0][0]
         assert payload["lemma"] == "読む"
-        assert payload["surface"] == "読んで"
+        # Surface is normalized to lemma for display, original surface preserved in surfaceOriginal
+        assert payload["surface"] == "読む"
+        assert payload["surfaceOriginal"] == "読んで"
         assert payload["reading"] == "よむ"
         assert not payload["notFound"]
 

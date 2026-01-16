@@ -106,6 +106,7 @@ def controller(mock_main_window, mock_canvas, mock_ingestor,
         ingestor=mock_ingestor,
         word_interaction=word_coord,
         context_coordinator=context_coord,
+        vocabulary_service=mock_vocabulary_service,
     )
     return ctrl
 

@@ -82,6 +82,7 @@ class DatabaseManager:
         )
         self.connection.commit()
 
+    # to be reviewed
     def upsert_tracked_word(
         self, lemma: str, reading: str = "", part_of_speech: str = ""
     ) -> TrackedWord:
@@ -125,10 +126,9 @@ class DatabaseManager:
         page_index: int,
         crop_coordinates: Dict[str, float],
         sentence_text: str,
-    ) -> Optional[WordAppearance]:
+    ) -> WordAppearance:
         coords_json = json.dumps(crop_coordinates, ensure_ascii=True)
         cur = self.connection.cursor()
-        appearance_id: Optional[int]
         try:
             cur.execute(
                 """
@@ -140,19 +140,13 @@ class DatabaseManager:
             )
             self.connection.commit()
             appearance_id = cur.lastrowid
-        except sqlite3.IntegrityError:
-            appearance_id = None
-        if appearance_id is None:
-            cur.execute(
-                """
-                SELECT id FROM word_appearances
-                WHERE word_id = ? AND volume_id = ? AND page_index = ? AND crop_coordinates = ?
-                """,
-                (word_id, volume_id, page_index, coords_json),
-            )
-            row = cur.fetchone()
-            appearance_id = row["id"] if row else None
-        return self._get_word_appearance_by_id(appearance_id) if appearance_id else None
+        except sqlite3.IntegrityError as e:
+            raise ValueError(
+                f"Word appearance already exists: word_id={word_id}, volume_id={volume_id}, "
+                f"page_index={page_index}"
+            ) from e
+        
+        return self._get_word_appearance_by_id(appearance_id)
 
     def list_tracked_words(self) -> List[TrackedWord]:
         cur = self.connection.cursor()
@@ -203,6 +197,8 @@ class DatabaseManager:
             (lemma, reading),
         )
         row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"Tracked word not found: lemma={lemma}, reading={reading}")
         return self._row_to_tracked_word(row)
 
     def _get_volume(self, path: Path) -> MangaVolumeEntry:
@@ -214,9 +210,11 @@ class DatabaseManager:
             (str(path),),
         )
         row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"Volume not found: path={path}")
         return self._row_to_volume(row)
 
-    def _get_word_appearance_by_id(self, appearance_id: int) -> Optional[WordAppearance]:
+    def _get_word_appearance_by_id(self, appearance_id: int) -> WordAppearance:
         cur = self.connection.cursor()
         cur.execute(
             """
@@ -236,7 +234,9 @@ class DatabaseManager:
             (appearance_id,),
         )
         row = cur.fetchone()
-        return self._row_to_word_appearance(row) if row else None
+        if row is None:
+            raise ValueError(f"Word appearance not found: id={appearance_id}")
+        return self._row_to_word_appearance(row)
 
     @staticmethod
     def _row_to_tracked_word(row: sqlite3.Row) -> TrackedWord:

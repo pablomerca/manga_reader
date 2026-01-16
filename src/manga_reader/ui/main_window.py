@@ -204,6 +204,21 @@ class MainWindow(QMainWindow):
         """Display an information message to the user."""
         QMessageBox.information(self, title, message)
     
+    def show_question(self, title: str, message: str) -> bool:
+        """
+        Display a question dialog with Yes/No buttons.
+        
+        Returns:
+            True if user clicked Yes, False if user clicked No or closed dialog
+        """
+        reply = QMessageBox.question(
+            self,
+            title,
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        return reply == QMessageBox.StandardButton.Yes
+    
     def show_relocation_dialog(self, volume_title: str, old_path: Path) -> Path:
         """Display error and prompt user to relocate a volume.
         

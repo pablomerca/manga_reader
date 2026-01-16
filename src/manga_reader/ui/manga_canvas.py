@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Set
 
 from PySide6.QtCore import QEvent, QObject, Qt, QUrl, Signal, Slot
 from PySide6.QtWebChannel import QWebChannel
@@ -145,12 +145,13 @@ class MangaCanvas(QWidget):
         
         return super().eventFilter(obj, event)
 
-    def render_pages(self, pages: list[MangaPage]):
+    def render_pages(self, pages: list[MangaPage], tracked_lemmas: Set[str] = set()):
         """
         Render one or more manga pages with OCR overlays.
         
         Args:
             pages: List of MangaPage objects to render
+            tracked_lemmas: Optional set of lemmas to highlight with black border
         """
         if not pages:
             self.clear()
@@ -162,7 +163,7 @@ class MangaCanvas(QWidget):
         self.current_page = pages[0]  # Keep reference
         
         # Prepare data for JS
-        data = self._prepare_data(pages)
+        data = self._prepare_data(pages, tracked_lemmas)
         
         # Send data to JS via runJavaScript (Most robust method)
         # We assume 'updateView' is available globally in the loaded page.
@@ -181,10 +182,15 @@ class MangaCanvas(QWidget):
         """
         self.render_pages([page])
     
-    def _prepare_data(self, pages: list[MangaPage]) -> dict:
+    def _prepare_data(self, pages: list[MangaPage], tracked_lemmas: Set[str]) -> dict:
         """
         Convert Python objects to JSON-serializable dict for JS.
+        
+        Args:
+            pages: List of pages to serialize
+            tracked_lemmas: Optional set of lemmas to mark as tracked
         """
+
         pages_data = []
         
         # Reverse pages for right-to-left reading order (Visual Order: Left -> Right)
@@ -192,19 +198,24 @@ class MangaCanvas(QWidget):
         reversed_pages = list(reversed(pages))
         
         for page in reversed_pages:
-            pages_data.append(self._serialize_page(page))
+            pages_data.append(self._serialize_page(page, tracked_lemmas))
             
         return {
             "pages": pages_data,
-            "gap": 20
+            "gap": 20,
+            "trackedLemmas": list(tracked_lemmas)  # Include tracked lemmas for JS
         }
 
-    def _serialize_page(self, page: MangaPage) -> dict:
+    def _serialize_page(self, page: MangaPage, tracked_lemmas: Set[str] = set()) -> dict:
         """
         Convert single page to dict with noun metadata.
         
         Each block includes a 'nouns' array with noun token information
         for JavaScript to use for highlighting and interaction.
+        
+        Args:
+            page: The page to serialize
+            tracked_lemmas: Optional set of tracked lemmas to mark words
         """
         blocks_data = []
         for idx, block in enumerate(page.ocr_blocks):
@@ -228,6 +239,7 @@ class MangaCanvas(QWidget):
                         "start": token.start_offset,
                         "end": token.end_offset,
                         "pos": token.pos,
+                        "isTracked": token.lemma in tracked_lemmas,  # Mark tracked words
                     }
                     for token in words
                 ],
@@ -310,3 +322,28 @@ class MangaCanvas(QWidget):
         """Hide the dictionary popup in JS."""
         self.web_view.page().runJavaScript("hideWordPopup();")
 
+
+    # TODO: refactor, call js method (to be implemented) directly
+    def add_tracked_lemma(self, lemma: str):
+        """
+        Dynamically add a lemma to the tracked set and update styling.
+        
+        This is called when a word is newly tracked, so that all instances
+        of that lemma on the current page get the tracked-word styling
+        without needing to re-render the entire page.
+        
+        Args:
+            lemma: The lemma to mark as tracked
+        """
+
+
+        js_code = f"""
+        if (!window.trackedLemmas) window.trackedLemmas = [];
+        window.trackedLemmas.push("{lemma}");
+        
+        // Update all word spans with this lemma to show tracked style
+        document.querySelectorAll('.word[data-lemma="{lemma}"]').forEach(el => {{
+            el.classList.add('tracked-word');
+        }});
+        """
+        self.web_view.page().runJavaScript(js_code)
