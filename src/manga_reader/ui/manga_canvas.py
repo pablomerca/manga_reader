@@ -322,6 +322,13 @@ class MangaCanvas(QWidget):
         """Hide the dictionary popup in JS."""
         self.web_view.page().runJavaScript("hideWordPopup();")
 
+    def mark_popup_word_as_tracked(self):
+        """Mark the currently displayed word as tracked in the popup.
+        
+        Dynamically updates the popup UI to hide the Track button and show
+        the View Context button, indicating the word is now being tracked.
+        """
+        self.web_view.page().runJavaScript("window.markWordAsTracked();")
 
     # TODO: refactor, call js method (to be implemented) directly
     def add_tracked_lemma(self, lemma: str):

@@ -251,6 +251,10 @@ class MangaViewer {
     hideWordPopup() {
         this.popupManager.hide();
     }
+
+    markWordAsTracked() {
+        this.popupManager.markWordAsTracked();
+    }
 }
 
 // Instantiate and expose updateView for Python
@@ -258,3 +262,4 @@ const mangaViewer = new MangaViewer();
 window.updateView = (data) => mangaViewer.updateView(data);
 window.showWordPopup = (payload) => mangaViewer.showWordPopup(payload);
 window.hideWordPopup = () => mangaViewer.hideWordPopup();
+window.markWordAsTracked = () => mangaViewer.markWordAsTracked();

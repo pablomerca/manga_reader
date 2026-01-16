@@ -150,6 +150,9 @@ class WordInteractionCoordinator(QObject):
 
             # Update UI to show tracked status (mark word with black border)
             self.canvas.add_tracked_lemma(lemma)
+            
+            # Update popup to show tracking state changed
+            self.canvas.mark_popup_word_as_tracked()
 
             self.main_window.show_info(
                 "Word Tracked",

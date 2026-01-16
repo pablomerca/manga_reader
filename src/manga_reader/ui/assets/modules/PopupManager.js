@@ -108,13 +108,9 @@ export class PopupManager {
         // Action buttons: Track (if not tracked) and View Context (if tracked)
         let actionsHtml = "";
         if (!notFound) {
-            let trackBtn = isTracked 
-                ? '<button class="dict-btn dict-btn-tracked" disabled>✓ Tracked</button>'
-                : '<button class="dict-btn dict-btn-track" data-action="track">+ Track Word</button>';
-            
-            let contextBtn = isTracked
-                ? '<button class="dict-btn dict-btn-context" data-action="view-context">📋 View Context</button>'
-                : '';
+            // Always create both buttons, but hide one based on tracked state
+            let trackBtn = `<button class="dict-btn dict-btn-track" data-action="track" style="display: ${isTracked ? 'none' : 'block'};">+ Track Word</button>`;
+            let contextBtn = `<button class="dict-btn dict-btn-context" data-action="view-context" style="display: ${isTracked ? 'block' : 'none'};">📋 View Context</button>`;
             
             actionsHtml = `
                 <div class="dict-actions">
@@ -192,6 +188,44 @@ export class PopupManager {
         const contextBtn = this.popupEl.querySelector('[data-action="view-context"]');
         if (contextBtn) {
             contextBtn.addEventListener('click', () => this.handleViewContext());
+        }
+    }
+
+    /**
+     * Mark the currently displayed word as tracked in the popup.
+     * Hides Track button and shows View Context button dynamically.
+     */
+    markWordAsTracked() {
+        if (!this.popupEl) return;
+
+        // Hide the Track button
+        const trackBtn = this.popupEl.querySelector('.dict-btn-track');
+        if (trackBtn) {
+            trackBtn.style.display = 'none';
+        }
+
+        // Show the View Context button (it may be hidden in the HTML)
+        const contextBtn = this.popupEl.querySelector('.dict-btn-context');
+        if (contextBtn) {
+            contextBtn.style.display = 'block';
+        }
+
+        // Add the tracked badge if it doesn't exist
+        let badge = this.popupEl.querySelector('.dict-tracked-badge');
+        if (!badge) {
+            // Create the badge element
+            badge = document.createElement('span');
+            badge.className = 'dict-tracked-badge';
+            badge.textContent = '✓ Tracked';
+            
+            // Add it to the dict-reading element
+            const dictReading = this.popupEl.querySelector('.dict-reading');
+            if (dictReading) {
+                dictReading.appendChild(badge);
+            }
+        } else {
+            // If badge exists but is hidden, show it
+            badge.style.display = 'inline-block';
         }
     }
 
