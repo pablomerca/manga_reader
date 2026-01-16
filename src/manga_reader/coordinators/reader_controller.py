@@ -13,6 +13,7 @@ from manga_reader.services import VocabularyService
 from manga_reader.ui import MainWindow, MangaCanvas
 from .word_interaction_coordinator import WordInteractionCoordinator
 from .context_panel_coordinator import ContextPanelCoordinator
+from .context_sync_coordinator import ContextSyncCoordinator
 
 from .view_modes import (
     ViewMode,
@@ -34,6 +35,7 @@ class ReaderController(QObject):
         ingestor: VolumeIngestor,
         word_interaction: WordInteractionCoordinator,
         context_coordinator: ContextPanelCoordinator,
+        context_sync_coordinator: ContextSyncCoordinator,
         vocabulary_service: VocabularyService,
         library_coordinator: LibraryCoordinator,
     ):
@@ -49,6 +51,8 @@ class ReaderController(QObject):
             raise ValueError("WordInteractionCoordinator must not be None")
         if context_coordinator is None:
             raise ValueError("ContextPanelCoordinator must not be None")
+        if context_sync_coordinator is None:
+            raise ValueError("ContextSyncCoordinator must not be None")
         if vocabulary_service is None:
             raise ValueError("VocabularyService must not be None")
         if library_coordinator is None:
@@ -56,6 +60,7 @@ class ReaderController(QObject):
 
         self.word_interaction = word_interaction
         self.context_coordinator = context_coordinator
+        self.context_sync_coordinator = context_sync_coordinator
         
         # Session state
         self.current_volume: MangaVolume | None = None
@@ -99,6 +104,9 @@ class ReaderController(QObject):
         # Update session state
         self.current_volume = volume
         self.current_page_number = 0
+
+        # Keep context sync coordinator aligned with the active volume
+        self.context_sync_coordinator.set_volume(volume)
         
         # Add to library if we have a coordinator
         if self.library_coordinator:
@@ -120,6 +128,11 @@ class ReaderController(QObject):
             f"Successfully loaded: {volume.title}\n"
             f"Total pages: {volume.total_pages}"
         )
+
+    @Slot()
+    def handle_sync_context_requested(self):
+        """Trigger synchronization of tracked word appearances for the current volume."""
+        self.context_sync_coordinator.synchronize_current_volume()
     
     def _render_current_page(self):
         """Render the current page(s) to the canvas based on view mode."""

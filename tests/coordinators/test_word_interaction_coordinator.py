@@ -169,6 +169,7 @@ class TestHandleTrackWord:
         """Test successfully tracking a word."""
         coordinator.set_volume_context(sample_volume, 0)
         coordinator.last_clicked_block_text = "test sentence"
+        coordinator.last_clicked_crop_coords = {"x": 100, "y": 200, "width": 300, "height": 50}
         
         coordinator.handle_track_word("taberu", "たべる", "Verb")
         
@@ -185,6 +186,7 @@ class TestHandleTrackWord:
         """Test that sentence context is used when tracking."""
         coordinator.set_volume_context(sample_volume, 0)
         coordinator.last_clicked_block_text = "Custom sentence with the word"
+        coordinator.last_clicked_crop_coords = {"x": 100, "y": 200, "width": 300, "height": 50}
         
         coordinator.handle_track_word("word", "ワード", "Noun")
         
@@ -195,6 +197,7 @@ class TestHandleTrackWord:
         """Test error handling when tracking fails."""
         coordinator.set_volume_context(sample_volume, 0)
         coordinator.last_clicked_block_text = "test sentence"
+        coordinator.last_clicked_crop_coords = {"x": 100, "y": 200, "width": 300, "height": 50}
         mock_vocabulary_service.track_word.side_effect = Exception("DB error")
         
         coordinator.handle_track_word("test", "てすと", "Noun")
@@ -206,6 +209,7 @@ class TestHandleTrackWord:
         coordinator.set_volume_context(sample_volume, 0)
         coordinator.last_clicked_page_index = 0  # Set from word click
         coordinator.last_clicked_block_text = "test sentence"
+        coordinator.last_clicked_crop_coords = {"x": 100, "y": 200, "width": 300, "height": 50}
         
         coordinator.handle_track_word("test", "てすと", "Noun")
         

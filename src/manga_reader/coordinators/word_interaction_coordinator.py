@@ -38,6 +38,7 @@ class WordInteractionCoordinator(QObject):
         self.last_clicked_lemma: Optional[str] = None
         self.last_clicked_page_index: Optional[int] = None
         self.last_clicked_block_text: Optional[str] = None
+        self.last_clicked_crop_coords: Optional[dict] = None
 
         # Current session context (provided by ReaderController)
         self._current_volume: Optional[MangaVolume] = None
@@ -72,6 +73,7 @@ class WordInteractionCoordinator(QObject):
         self.last_clicked_lemma = lemma
         self.last_clicked_page_index = page_index if page_index >= 0 else self._current_page
         self.last_clicked_block_text = None
+        self.last_clicked_crop_coords = None
 
         # Find the OCR block for sentence context
         if (
@@ -87,6 +89,13 @@ class WordInteractionCoordinator(QObject):
                 clicked_block = current_page.find_block_at_position(mouse_x, mouse_y)
             if clicked_block is not None:
                 self.last_clicked_block_text = clicked_block.full_text
+                # Store actual block coordinates for tracking
+                self.last_clicked_crop_coords = {
+                    "x": clicked_block.x,
+                    "y": clicked_block.y,
+                    "width": clicked_block.width,
+                    "height": clicked_block.height,
+                }
 
         entry = self.dictionary_service.lookup(lemma, surface)
 
@@ -122,6 +131,8 @@ class WordInteractionCoordinator(QObject):
             raise RuntimeError("No volume loaded for tracking word")
         if self.last_clicked_block_text is None:
             raise RuntimeError("No block context available for tracking word")
+        if self.last_clicked_crop_coords is None:
+            raise RuntimeError("No crop coordinates available for tracking word")
 
         # Use the stored page from when the word was clicked, not current page
         page_index = (
@@ -133,9 +144,7 @@ class WordInteractionCoordinator(QObject):
             return
 
         sentence = self.last_clicked_block_text
-
-        # Placeholder crop coordinates until block-based cropping is implemented
-        crop_coords = {"x": 0, "y": 0, "width": 100, "height": 50}
+        crop_coords = self.last_clicked_crop_coords
 
         try:
             self.vocabulary_service.track_word(

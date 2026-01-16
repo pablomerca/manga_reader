@@ -100,6 +100,7 @@ def controller(mock_main_window, mock_canvas, mock_ingestor,
         main_window=mock_main_window,
         word_interaction=word_coord,
     )
+    context_sync_coord = MagicMock()
     mock_library_coordinator = MagicMock()
     ctrl = ReaderController(
         main_window=mock_main_window,
@@ -107,6 +108,7 @@ def controller(mock_main_window, mock_canvas, mock_ingestor,
         ingestor=mock_ingestor,
         word_interaction=word_coord,
         context_coordinator=context_coord,
+        context_sync_coordinator=context_sync_coord,
         vocabulary_service=mock_vocabulary_service,
         library_coordinator=mock_library_coordinator,
     )
@@ -254,6 +256,7 @@ class TestHandleTrackWord:
         # Set volume context in word interaction coordinator
         controller.word_interaction.set_volume_context(sample_volume, 0)
         controller.word_interaction.last_clicked_block_text = "test sentence"
+        controller.word_interaction.last_clicked_crop_coords = {"x": 100, "y": 200, "width": 300, "height": 50}
         
         controller.handle_track_word("taberu", "たべる", "Verb")
         
@@ -269,6 +272,7 @@ class TestHandleTrackWord:
         controller.current_page_number = 0
         controller.word_interaction.set_volume_context(sample_volume, 0)
         controller.word_interaction.last_clicked_block_text = "test sentence"
+        controller.word_interaction.last_clicked_crop_coords = {"x": 100, "y": 200, "width": 300, "height": 50}
         
         # Mock the vocabulary service to raise an exception
         controller.word_interaction.vocabulary_service.track_word = MagicMock(
@@ -558,3 +562,18 @@ class TestViewMode:
 
         # State remains unchanged after exception
         assert controller.view_mode.name == "single"
+
+
+# =========================================================================
+# Tests for context synchronization wiring
+# =========================================================================
+
+
+def test_handle_sync_context_requests_run_sync(controller):
+    """Ensure sync request delegates to the context sync coordinator."""
+    # context_sync_coordinator is a MagicMock added in the controller fixture
+    controller.context_sync_coordinator.synchronize_current_volume = MagicMock()
+
+    controller.handle_sync_context_requested()
+
+    controller.context_sync_coordinator.synchronize_current_volume.assert_called_once()

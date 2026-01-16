@@ -5,13 +5,6 @@ from typing import override
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QKeyEvent
-"""Main Window - Application shell with menus and toolbar."""
-
-from pathlib import Path
-from typing import override
-
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QActionGroup, QKeyEvent
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -37,6 +30,8 @@ class MainWindow(QMainWindow):
     open_vocabulary_requested = Signal()
     # Signal emitted when user wants to return to library
     return_to_library_requested = Signal()
+    # Signal emitted when user wants to synchronize context appearances
+    sync_context_requested = Signal()
     
     def __init__(self):
         super().__init__()
@@ -126,6 +121,12 @@ class MainWindow(QMainWindow):
         open_vocab_action.setShortcut("Ctrl+V")
         open_vocab_action.triggered.connect(self._on_open_vocabulary)
         dictionary_menu.addAction(open_vocab_action)
+
+        # Synchronize Context Appearances action
+        sync_context_action = QAction("&Synchronize Context Appearances", self)
+        sync_context_action.setShortcut("Ctrl+Shift+S")
+        sync_context_action.triggered.connect(self.sync_context_requested.emit)
+        dictionary_menu.addAction(sync_context_action)
     
     def _on_view_mode_changed(self, mode: str):
         """Handle view mode change."""
@@ -187,6 +188,7 @@ class MainWindow(QMainWindow):
         - previous_page()
         - handle_view_mode_changed(str)
         - handle_open_vocabulary_list()
+        - handle_sync_context_requested()
         """
         self._controller = controller
         # Signal wiring
@@ -195,6 +197,7 @@ class MainWindow(QMainWindow):
         self.previous_page.connect(controller.previous_page)
         self.view_mode_changed.connect(controller.handle_view_mode_changed)
         self.open_vocabulary_requested.connect(controller.handle_open_vocabulary_list)
+        self.sync_context_requested.connect(controller.handle_sync_context_requested)
     
     def show_error(self, title: str, message: str):
         """Display an error message to the user."""
