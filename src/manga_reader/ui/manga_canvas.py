@@ -342,3 +342,23 @@ class MangaCanvas(QWidget):
             lemma: The lemma to mark as tracked
         """
         self.web_view.page().runJavaScript(f"window.markLemmaAsTracked('{lemma}');")
+
+    def highlight_block_at_coordinates(self, crop_coords: dict):
+        """
+        Draw a red rectangle overlay on the canvas at specified coordinates.
+        
+        Calls JavaScript to highlight a block by drawing a red rectangle at the
+        exact bounding box defined by crop_coordinates (x, y, width, height).
+        This is used for visual navigation to word appearances in context panel.
+        
+        Args:
+            crop_coords: Dictionary with keys 'x', 'y', 'width', 'height' (float values)
+        """
+        x = crop_coords.get('x', 0)
+        y = crop_coords.get('y', 0)
+        width = crop_coords.get('width', 100)
+        height = crop_coords.get('height', 50)
+        
+        # Call JavaScript to draw the highlight rectangle
+        script = f"window.highlightBlockAtCoordinates({x}, {y}, {width}, {height});"
+        self.web_view.page().runJavaScript(script)

@@ -267,7 +267,123 @@ class MangaViewer {
             this.pageRenderer.markLemmaAsTracked(lemma);
         }
     }
+
+    /**
+     * Highlight a block at specific coordinates with a red rectangle overlay.
+     * 
+     * Draws a red rectangle on the canvas at the exact position of an OCR block.
+     * Used for visual navigation when clicking context panel entries.
+     * 
+     * @param {number} x - X coordinate of the block (in original image pixels)
+     * @param {number} y - Y coordinate of the block (in original image pixels)
+     * @param {number} width - Width of the block
+     * @param {number} height - Height of the block
+     */
+    highlightBlockAtCoordinates(x, y, width, height) {
+        // Remove any previous highlight overlays
+        const existingHighlight = document.getElementById('block-highlight-overlay');
+        if (existingHighlight) {
+            existingHighlight.remove();
+        }
+
+        const viewportEl = document.getElementById('viewport');
+        if (!viewportEl) return;
+
+        // Find the OCR block that matches these coordinates
+        // The blocks are rendered with style.left and style.top matching x and y
+        const ocrBlocks = document.querySelectorAll('.ocr-block');
+        let targetBlock = null;
+        
+        for (const block of ocrBlocks) {
+            const blockX = parseFloat(block.style.left) || 0;
+            const blockY = parseFloat(block.style.top) || 0;
+            // Match with some tolerance for floating point
+            if (Math.abs(blockX - x) < 0.5 && Math.abs(blockY - y) < 0.5) {
+                targetBlock = block;
+                break;
+            }
+        }
+
+        // If no exact match found, estimate position (fallback)
+        let screenRect;
+        if (targetBlock) {
+            // Get the actual rendered position of the block
+            screenRect = targetBlock.getBoundingClientRect();
+        } else {
+            // Fallback: calculate manually using the page image as reference
+            const pageImages = document.querySelectorAll('.page-image');
+            if (pageImages.length === 0) return;
+            
+            const pageImage = pageImages[0];
+            const pageRect = pageImage.getBoundingClientRect();
+            const viewportRect = viewportEl.getBoundingClientRect();
+            
+            const zoomScale = this.zoomController.getScale();
+            const imageX = pageRect.left - viewportRect.left;
+            const imageY = pageRect.top - viewportRect.top;
+            
+            const screenX = imageX + (x * zoomScale);
+            const screenY = imageY + (y * zoomScale);
+            const screenWidth = width * zoomScale;
+            const screenHeight = height * zoomScale;
+            
+            // Create a fake rect object for consistency
+            screenRect = {
+                left: screenX + viewportRect.left,
+                top: screenY + viewportRect.top,
+                width: screenWidth,
+                height: screenHeight
+            };
+        }
+
+        // Calculate position within viewport
+        const viewportRect = viewportEl.getBoundingClientRect();
+        const blockX = screenRect.left - viewportRect.left;
+        const blockY = screenRect.top - viewportRect.top;
+        const blockWidth = screenRect.width;
+        const blockHeight = screenRect.height;
+
+        // Create canvas overlay for drawing the highlight
+        const canvas = document.createElement('canvas');
+        canvas.id = 'block-highlight-overlay';
+        canvas.style.position = 'absolute';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+        canvas.style.pointerEvents = 'none';
+        canvas.style.zIndex = '1000';
+
+        // Set canvas dimensions to viewport size
+        canvas.width = viewportEl.clientWidth;
+        canvas.height = viewportEl.clientHeight;
+
+        // Draw the highlight rectangle
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            // Red rectangle with semi-transparent fill
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+            ctx.fillRect(blockX, blockY, blockWidth, blockHeight);
+
+            // Red border
+            ctx.strokeStyle = 'rgb(255, 0, 0)';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(blockX, blockY, blockWidth, blockHeight);
+        }
+
+        // Append canvas to viewport
+        viewportEl.appendChild(canvas);
+
+        // Auto-remove highlight after 5 seconds
+        setTimeout(() => {
+            const highlight = document.getElementById('block-highlight-overlay');
+            if (highlight) {
+                highlight.style.opacity = '0';
+                highlight.style.transition = 'opacity 0.3s ease-out';
+                setTimeout(() => highlight.remove(), 300);
+            }
+        }, 5000);
+    }
 }
+
 
 // Instantiate and expose updateView for Python
 const mangaViewer = new MangaViewer();
@@ -276,3 +392,6 @@ window.showWordPopup = (payload) => mangaViewer.showWordPopup(payload);
 window.hideWordPopup = () => mangaViewer.hideWordPopup();
 window.markWordAsTracked = () => mangaViewer.markWordAsTracked();
 window.markLemmaAsTracked = (lemma) => mangaViewer.markLemmaAsTracked(lemma);
+window.highlightBlockAtCoordinates = (x, y, width, height) => 
+    mangaViewer.highlightBlockAtCoordinates(x, y, width, height);
+

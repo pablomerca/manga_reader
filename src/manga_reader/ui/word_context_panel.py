@@ -28,11 +28,14 @@ class WordContextPanel(QWidget):
     
     Signals:
     - appearance_selected: emitted when user clicks on an appearance row
+    - appearance_clicked_with_coords: emitted with coordinates for block highlighting
     - closed: emitted when user closes the panel
     """
     
     # Signal emitted when user selects an appearance (word_id, appearance_id, page_index)
     appearance_selected = Signal(int, int, int)
+    # Signal emitted when user clicks with coordinates for highlighting (volume_id, page_index, crop_coords_dict)
+    appearance_clicked_with_coords = Signal(int, int, dict)
     # Signal emitted when user closes the panel
     closed = Signal()
     
@@ -140,6 +143,12 @@ class WordContextPanel(QWidget):
                 self.current_word_id,
                 appearance.id,
                 appearance.page_index
+            )
+            # Emit signal with coordinates for block highlighting
+            self.appearance_clicked_with_coords.emit(
+                appearance.volume_id,
+                appearance.page_index,
+                appearance.crop_coordinates
             )
     
     def clear(self):

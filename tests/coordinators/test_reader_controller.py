@@ -577,3 +577,56 @@ def test_handle_sync_context_requests_run_sync(controller):
     controller.handle_sync_context_requested()
 
     controller.context_sync_coordinator.synchronize_current_volume.assert_called_once()
+
+
+# ============================================================================
+# Tests for block highlighting (Phase 4)
+# ============================================================================
+
+
+def test_handle_navigate_to_appearance_jumps_to_page(controller, sample_volume):
+    """Test that navigating to appearance jumps to correct page."""
+    controller.current_volume = sample_volume
+    controller.current_page_number = 0
+    
+    # Navigate to appearance on page 1
+    crop_coords = {'x': 100, 'y': 200, 'width': 300, 'height': 50}
+    controller.handle_navigate_to_appearance(volume_id=1, page_index=1, crop_coords=crop_coords)
+    
+    # Should have jumped to page 1
+    assert controller.current_page_number == 1
+    # Canvas should have been rendered
+    controller.canvas.render_pages.assert_called()
+
+
+def test_handle_navigate_to_appearance_highlights_block(controller, sample_volume):
+    """Test that highlight method is called with coordinates after navigation."""
+    controller.current_volume = sample_volume
+    controller.current_page_number = 0
+    controller.canvas.highlight_block_at_coordinates = MagicMock()
+    
+    # Navigate to appearance
+    crop_coords = {'x': 100, 'y': 200, 'width': 300, 'height': 50}
+    controller.handle_navigate_to_appearance(volume_id=1, page_index=1, crop_coords=crop_coords)
+    
+    # Start the timer event loop to trigger the delayed highlight
+    # (In real usage, the Qt event loop handles this; for testing we manually call it)
+    if controller._highlight_timer:
+        controller._highlight_timer.timeout.emit()
+    
+    # Highlight should be called with the coordinates
+    controller.canvas.highlight_block_at_coordinates.assert_called_with(crop_coords)
+
+
+def test_handle_navigate_to_appearance_no_volume(controller):
+    """Test navigation when no volume is loaded."""
+    controller.current_volume = None
+    controller.canvas.highlight_block_at_coordinates = MagicMock()
+    
+    crop_coords = {'x': 100, 'y': 200, 'width': 300, 'height': 50}
+    controller.handle_navigate_to_appearance(volume_id=1, page_index=1, crop_coords=crop_coords)
+    
+    # Should not call highlight (jump_to_page returns early)
+    if controller._highlight_timer:
+        controller._highlight_timer.timeout.emit()
+    controller.canvas.highlight_block_at_coordinates.assert_not_called()

@@ -103,6 +103,11 @@ def main():
     canvas.view_word_context_requested.connect(controller.handle_view_word_context)
     # Route lemma-based context requests via context coordinator
     canvas.view_context_by_lemma_requested.connect(context_coordinator.handle_view_context_by_lemma)
+    
+    # Route context panel appearance navigation with highlighting
+    context_panel.appearance_clicked_with_coords.connect(
+        controller.handle_navigate_to_appearance
+    )
 
     # Connect coordinator requests back to controller (already wired inside controller ctor)
     

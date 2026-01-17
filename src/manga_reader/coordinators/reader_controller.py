@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Slot
+from PySide6.QtCore import QObject, QTimer, Slot
 
 from manga_reader.coordinators.library_coordinator import LibraryCoordinator
 from manga_reader.core import MangaVolume
@@ -66,6 +66,9 @@ class ReaderController(QObject):
         self.current_volume: MangaVolume | None = None
         self.current_page_number: int = 0
         self.view_mode: ViewMode = SINGLE_PAGE_MODE
+        
+        # Timer for delayed highlighting (to allow async rendering)
+        self._highlight_timer: Optional[QTimer] = None
         
 
         # Wire context coordinator requests to handler slots
@@ -250,6 +253,40 @@ class ReaderController(QObject):
         self.view_mode = create_view_mode(mode_name)
         self.current_page_number = page_number
         self._render_current_page()
+
+    @Slot(int, int, dict)
+    def handle_navigate_to_appearance(self, volume_id: int, page_index: int, crop_coords: dict):
+        """
+        Navigate to a word appearance and highlight its block.
+        
+        Handles navigation from context panel to specific appearance. This method:
+        1. Jumps to the target page
+        2. Delays highlighting to allow page rendering to complete
+        3. Highlights the exact block coordinates
+        
+        Args:
+            volume_id: The volume ID (for validation, not currently used)
+            page_index: The page to navigate to (0-indexed)
+            crop_coords: Dictionary with x, y, width, height of the block to highlight
+        """
+        # Return early if no volume loaded
+        if self.current_volume is None:
+            return
+        
+        # Jump to the target page
+        self.jump_to_page(page_index)
+        
+        # Delay highlighting to allow page rendering (async JavaScript) to complete
+        # Use a single-shot timer with 100ms delay to ensure canvas is rendered
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(
+            lambda: self.canvas.highlight_block_at_coordinates(crop_coords)
+        )
+        # Keep timer alive by storing reference (otherwise it gets garbage collected)
+        self._highlight_timer = timer
+        timer.start(100)  # 100ms delay for page rendering
+
 
     # Word interaction is delegated to WordInteractionCoordinator
 
