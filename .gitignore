@@ -216,7 +216,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-testVol/
 prd.md
 arquitecture.md
 docs/
