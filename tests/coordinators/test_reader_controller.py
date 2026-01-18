@@ -161,6 +161,11 @@ class TestHandleVolumeOpened:
         volume_path = sample_volume.volume_path
         mock_ingestor.ingest_volume.return_value = sample_volume
         
+        # Setup library coordinator mock to return a library_volume with id
+        library_volume_mock = MagicMock()
+        library_volume_mock.id = 1
+        controller.library_coordinator.add_volume_to_library.return_value = library_volume_mock
+        
         controller.handle_volume_opened(volume_path)
         
         assert controller.current_volume == sample_volume
@@ -586,12 +591,13 @@ def test_handle_sync_context_requests_run_sync(controller):
 
 def test_handle_navigate_to_appearance_jumps_to_page(controller, sample_volume):
     """Test that navigating to appearance jumps to correct page."""
+    sample_volume.volume_id = 1  # Set volume_id to match the one being navigated to
     controller.current_volume = sample_volume
     controller.current_page_number = 0
     
     # Navigate to appearance on page 1
     crop_coords = {'x': 100, 'y': 200, 'width': 300, 'height': 50}
-    controller.handle_navigate_to_appearance(volume_id=1, page_index=1, crop_coords=crop_coords)
+    controller.handle_navigate_to_appearance(volume_id=1, volume_path=str(sample_volume.volume_path), page_index=1, crop_coords=crop_coords)
     
     # Should have jumped to page 1
     assert controller.current_page_number == 1
@@ -601,13 +607,14 @@ def test_handle_navigate_to_appearance_jumps_to_page(controller, sample_volume):
 
 def test_handle_navigate_to_appearance_highlights_block(controller, sample_volume):
     """Test that highlight method is called with coordinates after navigation."""
+    sample_volume.volume_id = 1  # Set volume_id to match the one being navigated to
     controller.current_volume = sample_volume
     controller.current_page_number = 0
     controller.canvas.highlight_block_at_coordinates = MagicMock()
     
     # Navigate to appearance
     crop_coords = {'x': 100, 'y': 200, 'width': 300, 'height': 50}
-    controller.handle_navigate_to_appearance(volume_id=1, page_index=1, crop_coords=crop_coords)
+    controller.handle_navigate_to_appearance(volume_id=1, volume_path=str(sample_volume.volume_path), page_index=1, crop_coords=crop_coords)
     
     # Start the timer event loop to trigger the delayed highlight
     # (In real usage, the Qt event loop handles this; for testing we manually call it)
@@ -618,15 +625,92 @@ def test_handle_navigate_to_appearance_highlights_block(controller, sample_volum
     controller.canvas.highlight_block_at_coordinates.assert_called_with(crop_coords)
 
 
-def test_handle_navigate_to_appearance_no_volume(controller):
-    """Test navigation when no volume is loaded."""
+def test_handle_navigate_to_appearance_no_volume(controller, sample_volume):
+    """Test navigation when no volume is currently loaded, but volume exists in library."""
+    # No current volume loaded
     controller.current_volume = None
     controller.canvas.highlight_block_at_coordinates = MagicMock()
     
-    crop_coords = {'x': 100, 'y': 200, 'width': 300, 'height': 50}
-    controller.handle_navigate_to_appearance(volume_id=1, page_index=1, crop_coords=crop_coords)
+    # Setup library repository to return the sample volume when queried
+    sample_volume.volume_id = 1
+    library_volume = MagicMock()
+    library_volume.folder_path = sample_volume.volume_path
+    library_volume.id = 1
     
-    # Should not call highlight (jump_to_page returns early)
+    controller.library_coordinator.library_repository.get_volume_by_id.return_value = library_volume
+    controller.library_coordinator.add_volume_to_library.return_value = library_volume
+    controller.ingestor.ingest_volume.return_value = sample_volume
+    
+    crop_coords = {'x': 100, 'y': 200, 'width': 300, 'height': 50}
+    controller.handle_navigate_to_appearance(volume_id=1, volume_path=str(sample_volume.volume_path), page_index=1, crop_coords=crop_coords)
+    
+    # Should have loaded the volume
+    assert controller.current_volume == sample_volume
+    # Should have jumped to page 1
+    assert controller.current_page_number == 1
+    # Highlight should eventually be called (via timer)
     if controller._highlight_timer:
         controller._highlight_timer.timeout.emit()
-    controller.canvas.highlight_block_at_coordinates.assert_not_called()
+    controller.canvas.highlight_block_at_coordinates.assert_called_with(crop_coords)
+
+
+def test_handle_navigate_to_appearance_different_volume(controller, sample_volume):
+    """Test navigation to appearance in a DIFFERENT volume (bug fix test)."""
+    # Setup: Current volume is volume 1
+    sample_volume.volume_id = 1
+    controller.current_volume = sample_volume
+    controller.current_page_number = 0
+    
+    # Create a different volume (volume 2) to navigate to
+    from pathlib import Path
+    from manga_reader.core import MangaPage, OCRBlock
+    
+    other_volume = MangaVolume(
+        title="Other Volume",
+        volume_path=Path("/tmp/other_volume"),
+        pages=[
+            MangaPage(
+                page_number=0,
+                image_path=Path("/tmp/other_volume/0001.jpg"),
+                width=1280,
+                height=1600,
+                ocr_blocks=[
+                    OCRBlock(x=50, y=100, width=200, height=40, text_lines=["text"])
+                ]
+            ),
+            MangaPage(
+                page_number=1,
+                image_path=Path("/tmp/other_volume/0002.jpg"),
+                width=1280,
+                height=1600,
+                ocr_blocks=[
+                    OCRBlock(x=60, y=120, width=250, height=45, text_lines=["text"])
+                ]
+            ),
+        ],
+        volume_id=2  # Different volume ID
+    )
+    
+    # Setup mocks
+    library_volume = MagicMock()
+    library_volume.folder_path = other_volume.volume_path
+    library_volume.id = 2
+    
+    controller.library_coordinator.library_repository.get_volume_by_id.return_value = library_volume
+    controller.library_coordinator.add_volume_to_library.return_value = library_volume
+    controller.ingestor.ingest_volume.return_value = other_volume
+    controller.canvas.highlight_block_at_coordinates = MagicMock()
+    
+    # Navigate to appearance in volume 2
+    crop_coords = {'x': 60, 'y': 120, 'width': 250, 'height': 45}
+    controller.handle_navigate_to_appearance(volume_id=2, volume_path=str(other_volume.volume_path), page_index=1, crop_coords=crop_coords)
+    
+    # Should have SWITCHED to the different volume
+    assert controller.current_volume == other_volume
+    assert controller.current_volume.volume_id == 2
+    # Should have jumped to page 1
+    assert controller.current_page_number == 1
+    # Highlight should eventually be called
+    if controller._highlight_timer:
+        controller._highlight_timer.timeout.emit()
+    controller.canvas.highlight_block_at_coordinates.assert_called_with(crop_coords)

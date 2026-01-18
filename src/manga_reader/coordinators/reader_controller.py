@@ -80,12 +80,15 @@ class ReaderController(QObject):
         self.main_window.return_to_library_requested.connect(self._handle_return_to_library)
     
     @Slot(Path)
-    def handle_volume_opened(self, volume_path: Path):
+    def handle_volume_opened(self, volume_path: Path, show_success_dialog: bool = True, defer_render: bool = False):
         """
         Handle when user selects a volume folder.
         
         Args:
             volume_path: Path to the selected volume directory
+            show_success_dialog: Whether to show "Volume Loaded" success dialog (default: True)
+            defer_render: Whether to skip initial render (default: False). Used when jumping to
+                         a specific page to avoid rendering page 0 first.
         """
         # Ingest the volume
         volume = self.ingestor.ingest_volume(volume_path)
@@ -111,10 +114,12 @@ class ReaderController(QObject):
         # Keep context sync coordinator aligned with the active volume
         self.context_sync_coordinator.set_volume(volume)
         
-        # Add to library if we have a coordinator
+        # Add to library if we have a coordinator and set volume_id
         if self.library_coordinator:
             try:
-                self.library_coordinator.add_volume_to_library(volume_path)
+                library_volume = self.library_coordinator.add_volume_to_library(volume_path)
+                # Set the volume_id from the library so we can track it for multi-volume navigation
+                volume.volume_id = library_volume.id
             except RuntimeError as e:
                 # Log error but don't block reading
                 print(f"Warning: Could not add volume to library: {e}")
@@ -122,15 +127,17 @@ class ReaderController(QObject):
         # Switch to reading view
         self.main_window.display_reading_view(self.canvas)
         
-        # Render the first page
-        self._render_current_page()
+        # Render the first page (unless deferred for later navigation)
+        if not defer_render:
+            self._render_current_page()
         
-        # Show success message
-        self.main_window.show_info(
-            "Volume Loaded",
-            f"Successfully loaded: {volume.title}\n"
-            f"Total pages: {volume.total_pages}"
-        )
+        # Show success message only if requested (skip for silent loads)
+        if show_success_dialog:
+            self.main_window.show_info(
+                "Volume Loaded",
+                f"Successfully loaded: {volume.title}\n"
+                f"Total pages: {volume.total_pages}"
+            )
 
     @Slot()
     def handle_sync_context_requested(self):
@@ -248,33 +255,96 @@ class ReaderController(QObject):
         self._render_current_page()
 
     @Slot(str, int)
-    def _handle_restore_view_request(self, mode_name: str, page_number: int):
-        """Handle request to restore previous view state."""
+    def _handle_restore_view_request(self, volume_path: str, mode_name: str, page_number: int):
+        """Handle request to restore previous view state including volume."""
+        from pathlib import Path
+        
+        # If we're in a different volume, load the correct one first
+        if self.current_volume is None or Path(volume_path).resolve() != self.current_volume.volume_path.resolve():
+            try:
+                # Load the volume silently (no dialog)
+                self.handle_volume_opened(Path(volume_path), show_success_dialog=False, defer_render=True)
+            except Exception as e:
+                print(f"Warning: Could not restore volume: {e}")
+                # Continue with current volume if restoration fails
+        
+        # Now restore the view mode and page number
         self.view_mode = create_view_mode(mode_name)
         self.current_page_number = page_number
         self._render_current_page()
 
-    @Slot(int, int, dict)
-    def handle_navigate_to_appearance(self, volume_id: int, page_index: int, crop_coords: dict):
+    @Slot(int, str, int, dict)
+    def handle_navigate_to_appearance(self, volume_id: int, volume_path: str, page_index: int, crop_coords: dict):
         """
         Navigate to a word appearance and highlight its block.
         
         Handles navigation from context panel to specific appearance. This method:
-        1. Jumps to the target page
-        2. Delays highlighting to allow page rendering to complete
-        3. Highlights the exact block coordinates
+        1. Checks if already in the correct volume (by comparing paths)
+        2. If in different volume, loads that volume silently (no dialog)
+        3. Jumps to the target page
+        4. Delays highlighting to allow page rendering to complete
+        5. Highlights the exact block coordinates
         
         Args:
-            volume_id: The volume ID (for validation, not currently used)
+            volume_id: The volume ID where the appearance is located
+            volume_path: The path to the volume (used for path comparison and fallback)
             page_index: The page to navigate to (0-indexed)
             crop_coords: Dictionary with x, y, width, height of the block to highlight
         """
-        # Return early if no volume loaded
-        if self.current_volume is None:
-            return
+        # Resolve the target volume path for comparison
+        target_path = Path(volume_path).resolve() if volume_path else None
         
-        # Jump to the target page
-        self.jump_to_page(page_index)
+        # Check if we're already in this volume by comparing resolved paths
+        already_in_volume = (
+            self.current_volume is not None
+            and target_path is not None
+            and target_path == self.current_volume.volume_path.resolve()
+        )
+        
+        # Only load volume if we're not already in it
+        if not already_in_volume:
+            # Try to load the target volume
+            loaded_successfully = False
+            
+            # First, try loading by volume_id from library
+            if self.library_coordinator:
+                try:
+                    library_volume = self.library_coordinator.library_repository.get_volume_by_id(volume_id)
+                    # Load silently (no "Volume Loaded" dialog) with deferred render for smooth navigation
+                    self.handle_volume_opened(library_volume.folder_path, show_success_dialog=False, defer_render=True)
+                    loaded_successfully = True
+                except RuntimeError:
+                    # Volume not found by ID, will try fallback below
+                    pass
+            
+            # Fallback: if volume not found by ID in library, try using the volume path
+            if not loaded_successfully and volume_path:
+                try:
+                    self.handle_volume_opened(Path(volume_path), show_success_dialog=False, defer_render=True)
+                    loaded_successfully = True
+                except Exception as e:
+                    # If fallback also fails, show error and return
+                    self.main_window.show_error(
+                        "Volume Not Found",
+                        f"Could not find the volume for this appearance.\n"
+                        f"Path: {volume_path}\nError: {e}"
+                    )
+                    return
+            
+            if not loaded_successfully:
+                # No fallback path available
+                self.main_window.show_error(
+                    "Volume Not Found",
+                    f"Could not find the volume for this appearance (ID: {volume_id})."
+                )
+                return
+        
+        # Jump to the target page and render (first render for deferred loads)
+        # This ensures we only render the target page, never page 0
+        if self.current_volume is not None:
+            if 0 <= page_index < self.current_volume.total_pages:
+                self.current_page_number = page_index
+                self._render_current_page()
         
         # Delay highlighting to allow page rendering (async JavaScript) to complete
         # Use a single-shot timer with 100ms delay to ensure canvas is rendered

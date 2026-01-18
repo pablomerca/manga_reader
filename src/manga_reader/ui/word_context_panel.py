@@ -34,8 +34,8 @@ class WordContextPanel(QWidget):
     
     # Signal emitted when user selects an appearance (word_id, appearance_id, page_index)
     appearance_selected = Signal(int, int, int)
-    # Signal emitted when user clicks with coordinates for highlighting (volume_id, page_index, crop_coords_dict)
-    appearance_clicked_with_coords = Signal(int, int, dict)
+    # Signal emitted when user clicks with coordinates for highlighting (volume_id, volume_path, page_index, crop_coords_dict)
+    appearance_clicked_with_coords = Signal(int, str, int, dict)
     # Signal emitted when user closes the panel
     closed = Signal()
     
@@ -147,6 +147,7 @@ class WordContextPanel(QWidget):
             # Emit signal with coordinates for block highlighting
             self.appearance_clicked_with_coords.emit(
                 appearance.volume_id,
+                str(appearance.volume_path) if appearance.volume_path else "",
                 appearance.page_index,
                 appearance.crop_coordinates
             )

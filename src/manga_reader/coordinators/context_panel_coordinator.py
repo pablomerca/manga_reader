@@ -27,7 +27,7 @@ class ContextPanelCoordinator(QObject):
     # Signals to request actions from ReaderController
     navigate_to_page_requested = Signal(int)  # page_index
     view_mode_change_requested = Signal(str, int)  # mode_name, target_page
-    restore_view_requested = Signal(str, int)  # mode_name, page_number
+    restore_view_requested = Signal(str, str, int)  # volume_path, mode_name, page_number
 
     def __init__(
         self,
@@ -46,6 +46,7 @@ class ContextPanelCoordinator(QObject):
         # Previous state for restoration
         self.previous_view_mode_name: str = "single"
         self.previous_page_number: int = 0
+        self.previous_volume_path: str = ""  # Save volume path for restoration
         self.context_panel_active: bool = False
 
         # Current session context (provided by ReaderController)
@@ -140,6 +141,9 @@ class ContextPanelCoordinator(QObject):
             if self._view_mode is not None:
                 self.previous_view_mode_name = self._view_mode.name
             self.previous_page_number = self._current_page
+            # Save the current volume path so we can restore to it later
+            if self._current_volume is not None:
+                self.previous_volume_path = str(self._current_volume.volume_path)
             self.context_panel_active = True
 
             # Show the context panel
@@ -152,10 +156,15 @@ class ContextPanelCoordinator(QObject):
 
     @Slot()
     def _on_context_panel_closed(self):
-        """Handle when user closes the context panel: request restoration."""
+        """Handle when user closes the context panel: request restoration to original volume and page."""
         self.context_panel_active = False
         self.main_window.hide_context_panel()
-        self.restore_view_requested.emit(self.previous_view_mode_name, self.previous_page_number)
+        # Emit restore request with volume path so we can restore to the original volume
+        self.restore_view_requested.emit(
+            self.previous_volume_path,
+            self.previous_view_mode_name,
+            self.previous_page_number
+        )
 
     @Slot(int, int, int)
     def _on_appearance_selected(self, word_id: int, appearance_id: int, page_index: int):

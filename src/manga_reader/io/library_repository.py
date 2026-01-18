@@ -107,6 +107,37 @@ class LibraryRepository:
         except sqlite3.Error as e:
             raise RuntimeError(f"Failed to retrieve volume: {e}") from e
 
+    def get_volume_by_id(self, volume_id: int) -> LibraryVolume:
+        """Retrieve a volume by its ID.
+        
+        Args:
+            volume_id: The unique ID of the volume.
+            
+        Returns:
+            LibraryVolume: The volume entity.
+            
+        Raises:
+            RuntimeError: If volume not found.
+        """
+        try:
+            cur = self.connection.cursor()
+            cur.execute(
+                """
+                SELECT id, title, folder_path, cover_image_path, date_added, last_opened
+                FROM library_volumes
+                WHERE id = ?
+                """,
+                (volume_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError(
+                    f"Volume not found in library with ID: {volume_id}"
+                )
+            return self._row_to_library_volume(row)
+        except sqlite3.Error as e:
+            raise RuntimeError(f"Failed to retrieve volume: {e}") from e
+
     def get_all_volumes(self) -> List[LibraryVolume]:
         """Retrieve all volumes in the library.
         

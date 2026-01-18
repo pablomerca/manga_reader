@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from .manga_page import MangaPage
 
@@ -14,6 +14,7 @@ class MangaVolume:
     title: str
     volume_path: Path
     pages: List[MangaPage] = field(default_factory=list)
+    volume_id: Optional[int] = None  # Database ID if loaded from library, None if opened directly
     
     @property
     def total_pages(self) -> int:
