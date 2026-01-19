@@ -10,10 +10,11 @@ from manga_reader.io import VolumeIngestor
 from typing import Optional
 
 from manga_reader.services import VocabularyService
-from manga_reader.ui import MainWindow, MangaCanvas
+from manga_reader.ui import MainWindow, MangaCanvas, SentenceAnalysisPanel
 from .word_interaction_coordinator import WordInteractionCoordinator
 from .context_panel_coordinator import ContextPanelCoordinator
 from .context_sync_coordinator import ContextSyncCoordinator
+from .sentence_analysis_coordinator import SentenceAnalysisCoordinator
 
 from .view_modes import (
     ViewMode,
@@ -38,6 +39,8 @@ class ReaderController(QObject):
         context_sync_coordinator: ContextSyncCoordinator,
         vocabulary_service: VocabularyService,
         library_coordinator: LibraryCoordinator,
+        sentence_analysis_coordinator: SentenceAnalysisCoordinator,
+        sentence_analysis_panel: SentenceAnalysisPanel,
     ):
         super().__init__()
         
@@ -57,15 +60,22 @@ class ReaderController(QObject):
             raise ValueError("VocabularyService must not be None")
         if library_coordinator is None:
             raise ValueError("LibraryCoordinator must not be None")
+        if sentence_analysis_coordinator is None:
+            raise ValueError("SentenceAnalysisCoordinator must not be None")
+        if sentence_analysis_panel is None:
+            raise ValueError("SentenceAnalysisPanel must not be None")
 
         self.word_interaction = word_interaction
         self.context_coordinator = context_coordinator
         self.context_sync_coordinator = context_sync_coordinator
+        self.sentence_analysis_coordinator = sentence_analysis_coordinator
+        self.sentence_panel = sentence_analysis_panel
         
         # Session state
         self.current_volume: MangaVolume | None = None
         self.current_page_number: int = 0
         self.view_mode: ViewMode = SINGLE_PAGE_MODE
+        self._sentence_previous_view_mode: ViewMode | None = None
         
         # Timer for delayed highlighting (to allow async rendering)
         self._highlight_timer: Optional[QTimer] = None
@@ -75,6 +85,12 @@ class ReaderController(QObject):
         self.context_coordinator.navigate_to_page_requested.connect(self._handle_navigate_to_page_request)
         self.context_coordinator.view_mode_change_requested.connect(self._handle_view_mode_change_request)
         self.context_coordinator.restore_view_requested.connect(self._handle_restore_view_request)
+
+        # Wire sentence analysis actions
+        self.canvas.block_clicked.connect(self._handle_block_clicked)
+        self.sentence_panel.translate_clicked.connect(self.sentence_analysis_coordinator.request_translation)
+        self.sentence_panel.explain_clicked.connect(self.sentence_analysis_coordinator.request_explanation)
+        self.sentence_panel.close_clicked.connect(self._handle_sentence_panel_closed)
         
         # Wire main window return to library signal
         self.main_window.return_to_library_requested.connect(self._handle_return_to_library)
@@ -392,3 +408,49 @@ class ReaderController(QObject):
         """Handle Ctrl+L to return to library."""
         if self.library_coordinator:
             self.library_coordinator.show_library()
+
+    @Slot(int)
+    def _handle_block_clicked(self, block_id: int):
+        """Handle block click from canvas and open sentence analysis panel."""
+        if self.current_volume is None:
+            raise RuntimeError("No volume loaded in session")
+
+        if not (0 <= self.current_page_number < self.current_volume.total_pages):
+            self.main_window.show_error(
+                "Invalid selection",
+                f"Page index {self.current_page_number} is out of range.",
+            )
+            return
+
+        page = self.current_volume.get_page(self.current_page_number)
+        if block_id < 0 or block_id >= len(page.ocr_blocks):
+            self.main_window.show_error(
+                "Invalid selection",
+                "Selected block is out of range for this page.",
+            )
+            return
+
+        block = page.ocr_blocks[block_id]
+        text = block.full_text
+        volume_id = str(self.current_volume.volume_path)
+
+        # Force single page while sentence panel is open; remember previous mode
+        if self.view_mode.name == "double":
+            self._sentence_previous_view_mode = self.view_mode
+            self.view_mode = create_view_mode("single")
+            self._render_current_page()
+
+        self.sentence_panel.set_original_text(text)
+        self.main_window.show_sentence_panel()
+        self.sentence_analysis_coordinator.on_block_selected(text, volume_id)
+
+    @Slot()
+    def _handle_sentence_panel_closed(self):
+        """Handle sentence panel close action."""
+        self.sentence_analysis_coordinator.on_panel_closed()
+        self.sentence_panel.clear()
+        self.main_window.hide_sentence_panel()
+        if self._sentence_previous_view_mode is not None:
+            self.view_mode = self._sentence_previous_view_mode
+            self._sentence_previous_view_mode = None
+            self._render_current_page()

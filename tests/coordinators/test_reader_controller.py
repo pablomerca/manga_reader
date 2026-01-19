@@ -25,16 +25,28 @@ def mock_main_window():
     window = MagicMock()
     window.show_info = MagicMock()
     window.show_error = MagicMock()
+    window.show_sentence_panel = MagicMock()
+    window.hide_sentence_panel = MagicMock()
     return window
 
 
 @pytest.fixture
 def mock_canvas():
     """Mock MangaCanvas for testing."""
+    class DummySignal:
+        def __init__(self):
+            self._slots = []
+        def connect(self, slot):
+            self._slots.append(slot)
+        def emit(self, *args, **kwargs):
+            for slot in self._slots:
+                slot(*args, **kwargs)
+
     canvas = MagicMock()
     canvas.render_pages = MagicMock()
     canvas.hide_dictionary_popup = MagicMock()
     canvas.show_dictionary_popup = MagicMock()
+    canvas.block_clicked = DummySignal()
     return canvas
 
 
@@ -88,6 +100,14 @@ def mock_context_panel():
 def controller(mock_main_window, mock_canvas, mock_ingestor, 
                mock_dictionary_service, mock_vocabulary_service, mock_context_panel):
     """Create a ReaderController with mocked dependencies and coordinators."""
+    class DummySignal:
+        def __init__(self):
+            self._slots = []
+        def connect(self, slot):
+            self._slots.append(slot)
+        def emit(self, *args, **kwargs):
+            for slot in self._slots:
+                slot(*args, **kwargs)
     word_coord = WordInteractionCoordinator(
         canvas=mock_canvas,
         dictionary_service=mock_dictionary_service,
@@ -102,6 +122,21 @@ def controller(mock_main_window, mock_canvas, mock_ingestor,
     )
     context_sync_coord = MagicMock()
     mock_library_coordinator = MagicMock()
+    sentence_panel = MagicMock()
+    sentence_panel.translate_clicked = DummySignal()
+    sentence_panel.explain_clicked = DummySignal()
+    sentence_panel.close_clicked = DummySignal()
+    sentence_panel.set_original_text = MagicMock()
+    sentence_panel.clear = MagicMock()
+    sentence_panel.show = MagicMock()
+    sentence_panel.hide = MagicMock()
+
+    sentence_analysis_coord = MagicMock()
+    sentence_analysis_coord.on_block_selected = MagicMock()
+    sentence_analysis_coord.on_panel_closed = MagicMock()
+    sentence_analysis_coord.request_translation = MagicMock()
+    sentence_analysis_coord.request_explanation = MagicMock()
+
     ctrl = ReaderController(
         main_window=mock_main_window,
         canvas=mock_canvas,
@@ -111,6 +146,8 @@ def controller(mock_main_window, mock_canvas, mock_ingestor,
         context_sync_coordinator=context_sync_coord,
         vocabulary_service=mock_vocabulary_service,
         library_coordinator=mock_library_coordinator,
+        sentence_analysis_coordinator=sentence_analysis_coord,
+        sentence_analysis_panel=sentence_panel,
     )
     return ctrl
 
@@ -145,6 +182,18 @@ def sample_volume(tmp_path):
     
     volume = MangaVolume(title="Test Volume", volume_path=volume_path, pages=pages)
     return volume
+
+
+def test_handle_block_clicked_opens_sentence_panel(controller, sample_volume):
+    """Block clicks should open the sentence analysis panel with block text."""
+    controller.current_volume = sample_volume
+    controller.current_page_number = 0
+
+    controller._handle_block_clicked(block_id=0)
+
+    controller.sentence_panel.set_original_text.assert_called_once_with("test text")
+    controller.main_window.show_sentence_panel.assert_called_once()
+    controller.sentence_analysis_coordinator.on_block_selected.assert_called_once()
 
 
 # ============================================================================

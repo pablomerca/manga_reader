@@ -62,12 +62,19 @@ export class EventRouter {
                 }
             });
 
-            // Word clicks for dictionary lookup
+            // Word clicks for dictionary lookup (capture phase to stop block click bubbling)
             this.viewportEl.addEventListener("click", (e) => {
-                if (this.callbacks.onWordClick) {
-                    this.callbacks.onWordClick(e);
+                // Intercept word clicks before they reach block handlers
+                if (e.target && e.target.classList && e.target.classList.contains("word")) {
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    if (this.callbacks.onWordClick) {
+                        this.callbacks.onWordClick(e);
+                    }
+                    return;
                 }
-            });
+                // Non-word clicks can bubble normally
+            }, { capture: true });
         }
 
         // Keyboard navigation

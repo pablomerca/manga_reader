@@ -11,10 +11,18 @@ from manga_reader.coordinators import (
     WordInteractionCoordinator,
     ContextPanelCoordinator,
     ContextSyncCoordinator,
+    SentenceAnalysisCoordinator,
 )
 from manga_reader.io import DatabaseManager, LibraryRepository, VolumeIngestor
-from manga_reader.services import DictionaryService, MorphologyService, ThumbnailService, VocabularyService
-from manga_reader.ui import LibraryScreen, MainWindow, MangaCanvas, WordContextPanel
+from manga_reader.services import (
+    DictionaryService,
+    MorphologyService,
+    ThumbnailService,
+    VocabularyService,
+    InMemoryTranslationCache,
+    SettingsManager,
+)
+from manga_reader.ui import LibraryScreen, MainWindow, MangaCanvas, WordContextPanel, SentenceAnalysisPanel
 
 
 def main():
@@ -31,6 +39,8 @@ def main():
     morphology_service = MorphologyService()
     dictionary_service = DictionaryService()
     ingestor = VolumeIngestor()
+    settings_manager = SettingsManager()
+    translation_cache = InMemoryTranslationCache()
 
     # TODO: In production, migrate to proper OS-specific paths (~/.local/share, etc.)
 
@@ -50,9 +60,11 @@ def main():
     library_screen = LibraryScreen()
     canvas = MangaCanvas(morphology_service=morphology_service)
     context_panel = WordContextPanel()
+    sentence_panel = SentenceAnalysisPanel()
     main_window = MainWindow()
     main_window.set_canvas(canvas)
     main_window.set_context_panel(context_panel)
+    main_window.set_sentence_panel(sentence_panel)
     
     # 4. Instantiate Coordinators (Dependency Injection)
     word_interaction = WordInteractionCoordinator(
@@ -74,6 +86,12 @@ def main():
         vocabulary_service=vocabulary_service,
         morphology_service=morphology_service,
     )
+
+    sentence_analysis_coordinator = SentenceAnalysisCoordinator(
+        main_window=main_window,
+        translation_cache=translation_cache,
+        settings_manager=settings_manager,
+    )
     
     # Create library coordinator (pass to reader controller)
     library_coordinator = LibraryCoordinator(
@@ -93,6 +111,8 @@ def main():
         context_sync_coordinator=context_sync_coordinator,
         vocabulary_service=vocabulary_service,
         library_coordinator=library_coordinator,
+        sentence_analysis_coordinator=sentence_analysis_coordinator,
+        sentence_analysis_panel=sentence_panel,
     )
     
     # 5. Inject controller into MainWindow and let it wire signals internally

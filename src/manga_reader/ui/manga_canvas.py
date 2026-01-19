@@ -23,7 +23,7 @@ class WebConnector(QObject):
     # We will use runJavaScript() for that.
     
     # Signal to notify Python that a block was clicked
-    blockClickedSignal = Signal(int, int)  # id, ? might pass ID or metadata
+    blockClickedSignal = Signal(int)
     navigationSignal = Signal(str)  # "next" | "prev"
     # Signal to notify Python that a word was clicked (noun, verb, adjective, etc.)
     wordClickedSignal = Signal(str, str, int, int, int, int)  # lemma, surface, x, y, page_index, block_id
@@ -39,10 +39,7 @@ class WebConnector(QObject):
     def blockClicked(self, block_id):
         """Called from JS when a block is clicked."""
         print(f"DEBUG: Python received block click: {block_id}")
-        # For now we just print or emit a generic signal.
-        # Ideally we map ID back to page/block. 
-        # But for this refactor let's just keep the connection alive.
-        pass
+        self.blockClickedSignal.emit(block_id)
 
     @Slot(str)
     def requestNavigation(self, direction: str):
@@ -71,8 +68,8 @@ class WebConnector(QObject):
 class MangaCanvas(QWidget):
     """Renders manga JPEG with vertical Japanese text overlays using QWebEngineView."""
     
-    # Signal emitted when user clicks on a text block
-    block_clicked = Signal(int, int)  # x, y coordinates
+    # Signal emitted when user clicks on a text block (block_id)
+    block_clicked = Signal(int)
     # Signal emitted for navigation (preventing browser scroll)
     navigation_requested = Signal(str) # "next" or "prev"
     # Signal emitted when user clicks on a word (noun, verb, adjective, etc.)
@@ -116,6 +113,8 @@ class MangaCanvas(QWidget):
 
         # Forward JS navigation requests to canvas signal
         self.bridge.navigationSignal.connect(self.navigation_requested)
+        # Forward block clicks to canvas signal
+        self.bridge.blockClickedSignal.connect(self.block_clicked)
         # Forward word click requests to canvas signal
         self.bridge.wordClickedSignal.connect(self.word_clicked)
         # Forward track word requests to canvas signal

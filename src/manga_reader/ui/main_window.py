@@ -288,6 +288,14 @@ class MainWindow(QMainWindow):
         self.context_panel.hide()
         # Set initial splitter sizes (80/20 split when context is visible)
         self.splitter.setSizes([800, 200])
+
+    def set_sentence_panel(self, sentence_panel):
+        """Set the sentence analysis panel and add it to the split view."""
+        self.sentence_panel = sentence_panel
+        self.splitter.addWidget(sentence_panel)
+        self.sentence_panel.hide()
+        # Default splitter sizes when sentence panel is shown alongside canvas
+        self.splitter.setSizes([700, 200, 200])
     
     def show_context_panel(self):
         """Show the context panel and adjust splitter."""
@@ -302,6 +310,28 @@ class MainWindow(QMainWindow):
             self.context_panel.hide()
             # Reset splitter to full canvas
             self.splitter.setSizes([1000, 0])
+
+    def show_sentence_panel(self):
+        """Show the sentence analysis panel and adjust splitter for three panes."""
+        if hasattr(self, "sentence_panel") and self.sentence_panel:
+            self.sentence_panel.show()
+            # If context panel also exists, keep it visible; otherwise split between two
+            visible_widgets = [self.splitter.widget(i) for i in range(self.splitter.count()) if self.splitter.widget(i) and self.splitter.widget(i).isVisible()]
+            if len(visible_widgets) == 3:
+                self.splitter.setSizes([600, 200, 200])
+            else:
+                # Allocate space to canvas (index 0) and sentence panel (index 2)
+                self.splitter.setSizes([700, 0, 300])
+
+    def hide_sentence_panel(self):
+        """Hide the sentence analysis panel."""
+        if hasattr(self, "sentence_panel") and self.sentence_panel:
+            self.sentence_panel.hide()
+            # Prefer two-pane layout if context panel is visible, else canvas full width
+            if hasattr(self, "context_panel") and self.context_panel and self.context_panel.isVisible():
+                self.splitter.setSizes([700, 300, 0])
+            else:
+                self.splitter.setSizes([1000, 0, 0])
     
     def display_library_view(self, library_screen):
         """Switch to library screen view.
