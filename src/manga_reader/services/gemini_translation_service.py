@@ -16,7 +16,7 @@ class GeminiTranslationService(TranslationService):
     Uses the new google.genai package (maintained actively).
     """
 
-    MODEL_NAME = "gemini-2.5-flash-lite"
+    MODEL_NAME = "gemini-2.0-flash"
 
     TRANSLATION_PROMPT = """Translate the following Japanese text to natural, idiomatic English.
 Preserve the tone and nuance of the original.
