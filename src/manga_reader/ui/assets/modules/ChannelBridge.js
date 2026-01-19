@@ -84,8 +84,8 @@ export class ChannelBridge {
      * 
      * @param {string} blockId - Block identifier
      */
-    blockClicked(blockId) {
-        this.connector.blockClicked(blockId, () => {});
+    blockClicked(blockId, pageIndex) {
+        this.connector.blockClicked(blockId, pageIndex, () => {});
     }
 
     /**

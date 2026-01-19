@@ -409,20 +409,23 @@ class ReaderController(QObject):
         if self.library_coordinator:
             self.library_coordinator.show_library()
 
-    @Slot(int)
-    def _handle_block_clicked(self, block_id: int):
+    @Slot(int, int)
+    def _handle_block_clicked(self, block_id: int, page_index: int):
         """Handle block click from canvas and open sentence analysis panel."""
         if self.current_volume is None:
             raise RuntimeError("No volume loaded in session")
 
-        if not (0 <= self.current_page_number < self.current_volume.total_pages):
+        # Normalize page index (handle -1 as current page)
+        clicked_page = page_index if page_index >= 0 else self.current_page_number
+        
+        if not (0 <= clicked_page < self.current_volume.total_pages):
             self.main_window.show_error(
                 "Invalid selection",
-                f"Page index {self.current_page_number} is out of range.",
+                f"Page index {clicked_page} is out of range.",
             )
             return
 
-        page = self.current_volume.get_page(self.current_page_number)
+        page = self.current_volume.get_page(clicked_page)
         if block_id < 0 or block_id >= len(page.ocr_blocks):
             self.main_window.show_error(
                 "Invalid selection",
@@ -438,6 +441,16 @@ class ReaderController(QObject):
         if self.view_mode.name == "double":
             self._sentence_previous_view_mode = self.view_mode
             self.view_mode = create_view_mode("single")
+            # Use page_for_context logic to compute the correct page to display
+            target_page = self.view_mode.page_for_context(
+                current_page_number=self.current_page_number,
+                last_clicked_page_index=clicked_page,
+            )
+            self.current_page_number = target_page
+            self._render_current_page()
+        else:
+            # Already in single-page mode, just use the clicked page
+            self.current_page_number = clicked_page
             self._render_current_page()
 
         self.sentence_panel.set_original_text(text)

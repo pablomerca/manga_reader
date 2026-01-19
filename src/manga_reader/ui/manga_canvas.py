@@ -23,7 +23,7 @@ class WebConnector(QObject):
     # We will use runJavaScript() for that.
     
     # Signal to notify Python that a block was clicked
-    blockClickedSignal = Signal(int)
+    blockClickedSignal = Signal(int, int)
     navigationSignal = Signal(str)  # "next" | "prev"
     # Signal to notify Python that a word was clicked (noun, verb, adjective, etc.)
     wordClickedSignal = Signal(str, str, int, int, int, int)  # lemma, surface, x, y, page_index, block_id
@@ -35,11 +35,11 @@ class WebConnector(QObject):
     def __init__(self):
         super().__init__()
 
-    @Slot(int)
-    def blockClicked(self, block_id):
+    @Slot(int, int)
+    def blockClicked(self, block_id, page_index):
         """Called from JS when a block is clicked."""
-        print(f"DEBUG: Python received block click: {block_id}")
-        self.blockClickedSignal.emit(block_id)
+        print(f"DEBUG: Python received block click: block_id={block_id}, page_index={page_index}")
+        self.blockClickedSignal.emit(block_id, page_index)
 
     @Slot(str)
     def requestNavigation(self, direction: str):
@@ -68,8 +68,8 @@ class WebConnector(QObject):
 class MangaCanvas(QWidget):
     """Renders manga JPEG with vertical Japanese text overlays using QWebEngineView."""
     
-    # Signal emitted when user clicks on a text block (block_id)
-    block_clicked = Signal(int)
+    # Signal emitted when user clicks on a text block (block_id, page_index)
+    block_clicked = Signal(int, int)
     # Signal emitted for navigation (preventing browser scroll)
     navigation_requested = Signal(str) # "next" or "prev"
     # Signal emitted when user clicks on a word (noun, verb, adjective, etc.)

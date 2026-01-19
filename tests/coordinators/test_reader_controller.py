@@ -189,7 +189,7 @@ def test_handle_block_clicked_opens_sentence_panel(controller, sample_volume):
     controller.current_volume = sample_volume
     controller.current_page_number = 0
 
-    controller._handle_block_clicked(block_id=0)
+    controller._handle_block_clicked(block_id=0, page_index=0)
 
     controller.sentence_panel.set_original_text.assert_called_once_with("test text")
     controller.main_window.show_sentence_panel.assert_called_once()

@@ -56,7 +56,10 @@ export class PageRenderer {
 
         // Attach click handler; bridge validated at construction
         el.onclick = () => {
-            this.bridge.blockClicked(block.id, () => {});
+            // Find the page container to get its page index
+            const pageEl = el.closest(".page-container");
+            const pageIndex = pageEl ? parseInt(pageEl.dataset.pageIndex || "-1", 10) : -1;
+            this.bridge.blockClicked(block.id, pageIndex, () => {});
         };
 
         if (block.lines) {
