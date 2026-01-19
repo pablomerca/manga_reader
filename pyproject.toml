@@ -16,6 +16,8 @@ dependencies = [
     "janome",                   # Morphology and lemma normalization
     "jamdict",                  # Dictionary lookups
     "jamdict-data",             # The actual JMDict data files
+    "python-dotenv",            # Environment variable management
+    "google-genai",             # Google Gemini API client (new package)
 ]
 
 [project.optional-dependencies]
