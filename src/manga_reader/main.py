@@ -19,7 +19,8 @@ from manga_reader.services import (
     MorphologyService,
     ThumbnailService,
     VocabularyService,
-    InMemoryTranslationCache,
+    FileTranslationCache,
+    GeminiTranslationService,
     SettingsManager,
 )
 from manga_reader.ui import LibraryScreen, MainWindow, MangaCanvas, WordContextPanel, SentenceAnalysisPanel
@@ -40,7 +41,8 @@ def main():
     dictionary_service = DictionaryService()
     ingestor = VolumeIngestor()
     settings_manager = SettingsManager()
-    translation_cache = InMemoryTranslationCache()
+    translation_cache = FileTranslationCache()
+    translation_service = GeminiTranslationService()
 
     # TODO: In production, migrate to proper OS-specific paths (~/.local/share, etc.)
 
@@ -89,6 +91,7 @@ def main():
 
     sentence_analysis_coordinator = SentenceAnalysisCoordinator(
         main_window=main_window,
+        translation_service=translation_service,
         translation_cache=translation_cache,
         settings_manager=settings_manager,
     )

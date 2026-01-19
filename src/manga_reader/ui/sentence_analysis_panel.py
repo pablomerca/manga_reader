@@ -95,9 +95,34 @@ class SentenceAnalysisPanel(QWidget):
 
     def set_status(self, text: str) -> None:
         self.status_label.setText(text)
+    
+    def show_translation_loading(self) -> None:
+        """Show loading state for translation."""
+        self.translation_text.setPlaceholderText("Translating...")
+        self.translate_button.setEnabled(False)
+        self.status_label.setText("Loading...")
+    
+    def show_translation_error(self, error: str) -> None:
+        """Show error state for translation."""
+        self.translation_text.setPlainText(f"Error: {error}")
+        self.translate_button.setEnabled(True)
+        self.translate_button.setText("Retry")
+        self.status_label.setText("Failed")
+        self.status_label.setStyleSheet("color: red;")
+    
+    def show_translation_success(self, text: str) -> None:
+        """Show success state with translated text."""
+        self.translation_text.setPlainText(text)
+        self.translate_button.setEnabled(True)
+        self.translate_button.setText("Translate")
+        self.status_label.setText("Ready")
+        self.status_label.setStyleSheet("color: gray;")
 
     def clear(self) -> None:
         self.original_text.clear()
         self.translation_text.clear()
         self.explanation_text.clear()
         self.status_label.clear()
+        self.translate_button.setEnabled(True)
+        self.translate_button.setText("Translate")
+        self.status_label.setStyleSheet("color: gray;")

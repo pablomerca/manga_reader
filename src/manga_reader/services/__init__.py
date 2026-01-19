@@ -6,9 +6,12 @@ from manga_reader.services.vocabulary_service import VocabularyService
 from manga_reader.services.thumbnail_service import ThumbnailService
 from manga_reader.services.translation_cache import TranslationCache, CacheRecord
 from manga_reader.services.in_memory_translation_cache import InMemoryTranslationCache
+from manga_reader.services.file_translation_cache import FileTranslationCache
 from manga_reader.services.translation_service import TranslationService, TranslationResult
+from manga_reader.services.gemini_translation_service import GeminiTranslationService
 from manga_reader.services.explanation_service import ExplanationService, ExplanationResult
 from manga_reader.services.settings_manager import SettingsManager
+from manga_reader.services.text_normalization import normalize_text
 
 __all__ = [
 	"DictionaryEntry",
@@ -21,9 +24,12 @@ __all__ = [
 	"TranslationCache",
 	"CacheRecord",
 	"InMemoryTranslationCache",
+	"FileTranslationCache",
 	"TranslationService",
 	"TranslationResult",
+	"GeminiTranslationService",
 	"ExplanationService",
 	"ExplanationResult",
 	"SettingsManager",
+	"normalize_text",
 ]

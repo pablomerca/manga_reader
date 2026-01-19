@@ -1,10 +1,13 @@
 """Unit tests for TranslationCache abstraction."""
 
 from datetime import datetime
+from pathlib import Path
+import json
+import tempfile
 
 import pytest
 
-from manga_reader.services import InMemoryTranslationCache, CacheRecord
+from manga_reader.services import InMemoryTranslationCache, FileTranslationCache, CacheRecord
 
 
 @pytest.fixture
@@ -273,3 +276,155 @@ class TestInMemoryTranslationCacheContract:
         retrieved = cache.get(volume_id="vol1", normalized_text="猫", lang="en")
         assert retrieved.translation is not None
         assert retrieved.explanation is None
+
+@pytest.fixture
+def temp_volume_dir():
+    """Provide a temporary directory for testing file-based cache."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield Path(tmpdir)
+
+
+@pytest.fixture
+def file_cache():
+    """Provide a fresh FileTranslationCache instance."""
+    return FileTranslationCache()
+
+
+class TestFileTranslationCache:
+    """Tests for FileTranslationCache persistence."""
+
+    def test_put_and_get_roundtrip_with_file_persistence(self, file_cache, temp_volume_dir):
+        """FileCache should persist to disk and retrieve correctly."""
+        volume_id = str(temp_volume_dir)
+        
+        record = CacheRecord(
+            normalized_text="こんにちは",
+            lang="en",
+            translation="Hello",
+            explanation="Polite greeting",
+            model="gemini-pro",
+            updated_at=datetime.now(),
+        )
+
+        file_cache.put(
+            volume_id=volume_id,
+            normalized_text="こんにちは",
+            lang="en",
+            record=record,
+        )
+
+        cache_file = temp_volume_dir / ".translations-cache.json"
+        assert cache_file.exists()
+
+        retrieved = file_cache.get(volume_id=volume_id, normalized_text="こんにちは", lang="en")
+        assert retrieved is not None
+        assert retrieved.translation == "Hello"
+        assert retrieved.explanation == "Polite greeting"
+
+    def test_file_format_is_valid_json(self, file_cache, temp_volume_dir):
+        """Cache file should be valid JSON with expected structure."""
+        volume_id = str(temp_volume_dir)
+        
+        record = CacheRecord(
+            normalized_text="猫",
+            lang="en",
+            translation="cat",
+            explanation=None,
+            model="gemini-pro",
+            updated_at=datetime(2026, 1, 19, 12, 0, 0),
+        )
+
+        file_cache.put(volume_id=volume_id, normalized_text="猫", lang="en", record=record)
+
+        cache_file = temp_volume_dir / ".translations-cache.json"
+        data = json.loads(cache_file.read_text(encoding="utf-8"))
+
+        assert data["version"] == 1
+        assert data["volume_id"] == volume_id
+        assert len(data["entries"]) == 1
+        assert data["entries"][0]["normalized_text"] == "猫"
+        assert data["entries"][0]["translation"] == "cat"
+        assert data["entries"][0]["model"] == "gemini-pro"
+
+    def test_lru_cache_hit_avoids_disk_read(self, file_cache, temp_volume_dir):
+        """LRU cache should serve repeated requests without disk I/O."""
+        volume_id = str(temp_volume_dir)
+        
+        record = CacheRecord(
+            normalized_text="水",
+            lang="en",
+            translation="water",
+            explanation=None,
+            model="gemini-pro",
+            updated_at=datetime.now(),
+        )
+
+        file_cache.put(volume_id=volume_id, normalized_text="水", lang="en", record=record)
+        
+        result1 = file_cache.get(volume_id=volume_id, normalized_text="水", lang="en")
+        cache_file = temp_volume_dir / ".translations-cache.json"
+        cache_file.unlink()
+
+        result2 = file_cache.get(volume_id=volume_id, normalized_text="水", lang="en")
+        assert result2 is not None
+        assert result2.translation == "water"
+
+    def test_clear_volume_deletes_cache_file(self, file_cache, temp_volume_dir):
+        """Clearing a volume should remove the cache file."""
+        volume_id = str(temp_volume_dir)
+        
+        record = CacheRecord(
+            normalized_text="猫",
+            lang="en",
+            translation="cat",
+            explanation=None,
+            model="gemini-pro",
+            updated_at=datetime.now(),
+        )
+
+        file_cache.put(volume_id=volume_id, normalized_text="猫", lang="en", record=record)
+        cache_file = temp_volume_dir / ".translations-cache.json"
+        assert cache_file.exists()
+
+        file_cache.clear_volume(volume_id)
+        assert not cache_file.exists()
+
+    def test_list_keys_reads_from_file(self, file_cache, temp_volume_dir):
+        """list_keys should read from disk if not in LRU."""
+        volume_id = str(temp_volume_dir)
+        
+        record1 = CacheRecord(
+            normalized_text="猫",
+            lang="en",
+            translation="cat",
+            explanation=None,
+            model="gemini-pro",
+            updated_at=datetime.now(),
+        )
+        record2 = CacheRecord(
+            normalized_text="犬",
+            lang="en",
+            translation="dog",
+            explanation=None,
+            model="gemini-pro",
+            updated_at=datetime.now(),
+        )
+
+        file_cache.put(volume_id=volume_id, normalized_text="猫", lang="en", record=record1)
+        file_cache.put(volume_id=volume_id, normalized_text="犬", lang="en", record=record2)
+
+        new_cache = FileTranslationCache()
+        keys = new_cache.list_keys(volume_id)
+        
+        assert len(keys) == 2
+        assert ("猫", "en") in keys
+        assert ("犬", "en") in keys
+
+    def test_corrupted_cache_file_returns_none(self, file_cache, temp_volume_dir):
+        """Corrupted cache file should return None gracefully."""
+        volume_id = str(temp_volume_dir)
+        cache_file = temp_volume_dir / ".translations-cache.json"
+        cache_file.write_text("{ invalid json }", encoding="utf-8")
+
+        result = file_cache.get(volume_id=volume_id, normalized_text="test", lang="en")
+        assert result is None

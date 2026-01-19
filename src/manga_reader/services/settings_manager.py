@@ -1,26 +1,42 @@
-"""Settings Manager - Placeholder for API key and feature configuration."""
+"""Settings Manager - Handles API key and feature configuration."""
 
+import os
+from pathlib import Path
 from typing import Optional
+
+from dotenv import load_dotenv
 
 
 class SettingsManager:
     """
-    Placeholder for settings persistence.
+    Manages settings and API key configuration.
 
-    For MVP, holds values in memory. Can be extended to persist to QSettings or config file.
+    For MVP, reads API key from .env file in project root.
     """
 
-    def __init__(self):
-        self._gemini_api_key: Optional[str] = None
+    def __init__(self, project_root: Optional[Path] = None):
+        """
+        Initialize settings manager.
+
+        Args:
+            project_root: Path to project root where .env is located.
+                         If None, searches upward from current file.
+        """
+        if project_root is None:
+            current = Path(__file__).resolve()
+            project_root = current.parent.parent.parent.parent
+        
+        env_path = project_root / ".env"
+        load_dotenv(dotenv_path=env_path)
+        
+        self._project_root = project_root
 
     def get_gemini_api_key(self) -> Optional[str]:
-        """Get the Gemini API key if set."""
-        return self._gemini_api_key
+        """Get the Gemini API key from environment."""
+        key = os.getenv("GEMINI_API_KEY")
+        return key.strip() if key and key.strip() else None
 
-    def set_gemini_api_key(self, key: str) -> None:
-        """Set the Gemini API key."""
-        self._gemini_api_key = key if key.strip() else None
-
-    def clear_api_key(self) -> None:
-        """Clear the stored API key."""
-        self._gemini_api_key = None
+    def reload_env(self) -> None:
+        """Reload environment variables from .env file."""
+        env_path = self._project_root / ".env"
+        load_dotenv(dotenv_path=env_path, override=True)

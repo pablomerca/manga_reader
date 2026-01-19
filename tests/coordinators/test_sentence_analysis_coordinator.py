@@ -1,12 +1,18 @@
 """Unit tests for SentenceAnalysisCoordinator."""
 
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
 from PySide6.QtCore import QObject
 
 from manga_reader.coordinators import SentenceAnalysisCoordinator
-from manga_reader.services import InMemoryTranslationCache, SettingsManager
+from manga_reader.services import (
+    InMemoryTranslationCache,
+    SettingsManager,
+    TranslationResult,
+    CacheRecord,
+)
 
 
 @pytest.fixture
@@ -25,12 +31,29 @@ def translation_cache():
 
 
 @pytest.fixture
-def coordinator(mock_main_window, translation_cache):
+def mock_translation_service():
+    """Provide a mocked TranslationService."""
+    service = MagicMock()
+    service.translate = MagicMock()
+    return service
+
+
+@pytest.fixture
+def settings_manager():
+    """Provide a settings manager with test API key."""
+    manager = MagicMock()
+    manager.get_gemini_api_key = MagicMock(return_value=None)
+    return manager
+
+
+@pytest.fixture
+def coordinator(mock_main_window, translation_cache, mock_translation_service, settings_manager):
     """Create a SentenceAnalysisCoordinator with mocked dependencies."""
     return SentenceAnalysisCoordinator(
         main_window=mock_main_window,
         translation_cache=translation_cache,
-        settings_manager=SettingsManager(),
+        translation_service=mock_translation_service,
+        settings_manager=settings_manager,
     )
 
 
@@ -49,19 +72,20 @@ class TestSentenceAnalysisCoordinatorInitialization:
         """Coordinator should start with no current volume."""
         assert coordinator.current_volume_id is None
 
-    def test_actions_disabled_without_api_key(self, coordinator):
+    def test_actions_disabled_without_api_key(self, coordinator, settings_manager):
         """Actions should be disabled if API key is not set."""
+        settings_manager.get_gemini_api_key.return_value = None
         coordinator.selected_block_text = "何か"
         assert not coordinator.actions_enabled()
 
-    def test_actions_disabled_without_selected_block(self, coordinator):
+    def test_actions_disabled_without_selected_block(self, coordinator, settings_manager):
         """Actions should be disabled if no block is selected."""
-        coordinator.settings_manager.set_gemini_api_key("test-key-123")
+        settings_manager.get_gemini_api_key.return_value = "test-key-123"
         assert not coordinator.actions_enabled()
 
-    def test_actions_enabled_with_api_key_and_selected_block(self, coordinator):
+    def test_actions_enabled_with_api_key_and_selected_block(self, coordinator, settings_manager):
         """Actions should be enabled when API key and block are set."""
-        coordinator.settings_manager.set_gemini_api_key("test-key-123")
+        settings_manager.get_gemini_api_key.return_value = "test-key-123"
         coordinator.on_block_selected("何か", "vol1")
         assert coordinator.actions_enabled()
 
@@ -95,68 +119,142 @@ class TestSentenceAnalysisCoordinatorBlockSelection:
 class TestSentenceAnalysisCoordinatorTranslationRequest:
     """Tests for translation request handling."""
 
-    def test_request_translation_succeeds_with_api_key_and_block(
-        self, coordinator, mock_main_window
+    def test_request_translation_emits_started_signal(
+        self, coordinator, mock_main_window, mock_translation_service, settings_manager
     ):
-        """Translation request should succeed when API key and block are set."""
-        coordinator.settings_manager.set_gemini_api_key("test-key")
+        """Translation request should emit started signal."""
+        settings_manager.get_gemini_api_key.return_value = "test-key"
         coordinator.on_block_selected("何か", "vol1")
+        
+        mock_translation_service.translate.return_value = TranslationResult(
+            text="Something",
+            model="gemini-1.5-flash",
+        )
 
-        signal_spy = MagicMock()
-        coordinator.translation_requested.connect(signal_spy)
+        started_spy = MagicMock()
+        coordinator.translation_started.connect(started_spy)
 
         coordinator.request_translation()
-        signal_spy.assert_called_once_with("何か")
-        mock_main_window.show_error.assert_not_called()
+        started_spy.assert_called_once()
+
+    def test_request_translation_with_cache_hit(
+        self, coordinator, translation_cache, mock_translation_service, settings_manager
+    ):
+        """Translation should use cached result if available."""
+        settings_manager.get_gemini_api_key.return_value = "test-key"
+        coordinator.on_block_selected("何か", "vol1")
+        
+        cached_record = CacheRecord(
+            normalized_text="何か",
+            lang="en",
+            translation="Something (cached)",
+            explanation=None,
+            model="gemini-pro",
+            updated_at=datetime.now(),
+        )
+        translation_cache.put("vol1", "何か", "en", cached_record)
+
+        completed_spy = MagicMock()
+        coordinator.translation_completed.connect(completed_spy)
+
+        coordinator.request_translation()
+        completed_spy.assert_called_once_with("Something (cached)")
+        mock_translation_service.translate.assert_not_called()
+
+    def test_request_translation_with_cache_miss_calls_service(
+        self, coordinator, mock_translation_service, settings_manager
+    ):
+        """Translation should call service on cache miss."""
+        settings_manager.get_gemini_api_key.return_value = "test-key"
+        coordinator.on_block_selected("何か", "vol1")
+        
+        mock_translation_service.translate.return_value = TranslationResult(
+            text="Something",
+            model="gemini-1.5-flash",
+        )
+
+        coordinator.request_translation()
+        mock_translation_service.translate.assert_called_once_with(
+            text="何か",
+            api_key="test-key"
+        )
+
+    def test_request_translation_stores_result_in_cache(
+        self, coordinator, translation_cache, mock_translation_service, settings_manager
+    ):
+        """Successful translation should be stored in cache."""
+        settings_manager.get_gemini_api_key.return_value = "test-key"
+        coordinator.on_block_selected("何か", "vol1")
+        
+        mock_translation_service.translate.return_value = TranslationResult(
+            text="Something",
+            model="gemini-1.5-flash",
+        )
+
+        coordinator.request_translation()
+        
+        cached = translation_cache.get("vol1", "何か", "en")
+        assert cached is not None
+        assert cached.translation == "Something"
+
+    def test_request_translation_emits_error_on_failure(
+        self, coordinator, mock_translation_service, settings_manager
+    ):
+        """Translation error should emit failed signal."""
+        settings_manager.get_gemini_api_key.return_value = "test-key"
+        coordinator.on_block_selected("何か", "vol1")
+        
+        mock_translation_service.translate.return_value = TranslationResult(
+            text="",
+            model="gemini-1.5-flash",
+            error="API error occurred",
+        )
+
+        failed_spy = MagicMock()
+        coordinator.translation_failed.connect(failed_spy)
+
+        coordinator.request_translation()
+        failed_spy.assert_called_once_with("API error occurred")
 
     def test_request_translation_fails_without_api_key(
-        self, coordinator, mock_main_window
+        self, coordinator, mock_main_window, settings_manager
     ):
         """Translation request should fail without API key."""
+        settings_manager.get_gemini_api_key.return_value = None
         coordinator.on_block_selected("何か", "vol1")
 
-        signal_spy = MagicMock()
-        coordinator.translation_requested.connect(signal_spy)
-
         coordinator.request_translation()
-        signal_spy.assert_not_called()
         mock_main_window.show_error.assert_called()
 
     def test_request_translation_fails_without_selected_block(
-        self, coordinator, mock_main_window
+        self, coordinator, mock_main_window, settings_manager
     ):
         """Translation request should fail without selected block."""
-        coordinator.settings_manager.set_gemini_api_key("test-key")
-
-        signal_spy = MagicMock()
-        coordinator.translation_requested.connect(signal_spy)
+        settings_manager.get_gemini_api_key.return_value = "test-key"
 
         coordinator.request_translation()
-        signal_spy.assert_not_called()
         mock_main_window.show_error.assert_called()
 
-    def test_request_translation_emits_selected_text(
-        self, coordinator, mock_main_window
+    def test_request_translation_fails_without_volume(
+        self, coordinator, mock_main_window, settings_manager
     ):
-        """Translation request should emit the selected block text."""
-        coordinator.settings_manager.set_gemini_api_key("test-key")
-        coordinator.on_block_selected("走っている", "vol1")
-
-        signal_spy = MagicMock()
-        coordinator.translation_requested.connect(signal_spy)
+        """Translation request should fail without current volume."""
+        settings_manager.get_gemini_api_key.return_value = "test-key"
+        coordinator.selected_block_text = "何か"
+        coordinator.current_volume_id = None
 
         coordinator.request_translation()
-        signal_spy.assert_called_once_with("走っている")
+        mock_main_window.show_error.assert_called()
 
 
 class TestSentenceAnalysisCoordinatorExplanationRequest:
     """Tests for explanation request handling."""
 
     def test_request_explanation_succeeds_with_api_key_and_block(
-        self, coordinator, mock_main_window
+        self, coordinator, mock_main_window, settings_manager
     ):
         """Explanation request should succeed when API key and block are set."""
-        coordinator.settings_manager.set_gemini_api_key("test-key")
+        settings_manager.get_gemini_api_key.return_value = "test-key"
         coordinator.on_block_selected("何か", "vol1")
 
         signal_spy = MagicMock()
@@ -167,9 +265,10 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         mock_main_window.show_error.assert_not_called()
 
     def test_request_explanation_fails_without_api_key(
-        self, coordinator, mock_main_window
+        self, coordinator, mock_main_window, settings_manager
     ):
         """Explanation request should fail without API key."""
+        settings_manager.get_gemini_api_key.return_value = None
         coordinator.on_block_selected("何か", "vol1")
 
         signal_spy = MagicMock()
@@ -180,10 +279,10 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         mock_main_window.show_error.assert_called()
 
     def test_request_explanation_fails_without_selected_block(
-        self, coordinator, mock_main_window
+        self, coordinator, mock_main_window, settings_manager
     ):
         """Explanation request should fail without selected block."""
-        coordinator.settings_manager.set_gemini_api_key("test-key")
+        settings_manager.get_gemini_api_key.return_value = "test-key"
 
         signal_spy = MagicMock()
         coordinator.explanation_requested.connect(signal_spy)
@@ -193,10 +292,10 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         mock_main_window.show_error.assert_called()
 
     def test_request_explanation_emits_selected_text(
-        self, coordinator, mock_main_window
+        self, coordinator, mock_main_window, settings_manager
     ):
         """Explanation request should emit the selected block text."""
-        coordinator.settings_manager.set_gemini_api_key("test-key")
+        settings_manager.get_gemini_api_key.return_value = "test-key"
         coordinator.on_block_selected("走っている", "vol1")
 
         signal_spy = MagicMock()
