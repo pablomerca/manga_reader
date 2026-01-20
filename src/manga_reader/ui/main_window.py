@@ -314,14 +314,13 @@ class MainWindow(QMainWindow):
     def show_sentence_panel(self):
         """Show the sentence analysis panel and adjust splitter for three panes."""
         if hasattr(self, "sentence_panel") and self.sentence_panel:
+            # Hide context panel if it's visible (sentence panel takes priority)
+            if hasattr(self, "context_panel") and self.context_panel and self.context_panel.isVisible():
+                self.context_panel.hide()
+            
             self.sentence_panel.show()
-            # If context panel also exists, keep it visible; otherwise split between two
-            visible_widgets = [self.splitter.widget(i) for i in range(self.splitter.count()) if self.splitter.widget(i) and self.splitter.widget(i).isVisible()]
-            if len(visible_widgets) == 3:
-                self.splitter.setSizes([600, 200, 200])
-            else:
-                # Allocate space to canvas (index 0) and sentence panel (index 2)
-                self.splitter.setSizes([700, 0, 300])
+            # Allocate space to canvas (index 0) and sentence panel (index 2)
+            self.splitter.setSizes([700, 0, 300])
 
     def hide_sentence_panel(self):
         """Hide the sentence analysis panel."""
