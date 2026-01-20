@@ -6,10 +6,11 @@ from typing import Optional
 from PySide6.QtCore import QObject, Signal, Slot
 
 from manga_reader.services import (
+    CacheRecord,
+    ExplanationService,
+    SettingsManager,
     TranslationCache,
     TranslationService,
-    SettingsManager,
-    CacheRecord,
     normalize_text,
 )
 from manga_reader.ui import MainWindow
@@ -34,12 +35,17 @@ class SentenceAnalysisCoordinator(QObject):
     translation_started = Signal()
     translation_completed = Signal(str)
     translation_failed = Signal(str)
+    explanation_started = Signal()
+    explanation_completed = Signal(str)
+    explanation_failed = Signal(str)
+    explanation_loading = Signal(str)
 
     def __init__(
         self,
         main_window: MainWindow,
         translation_cache: TranslationCache,
         translation_service: TranslationService,
+        explanation_service: ExplanationService,
         settings_manager: SettingsManager,
     ):
         super().__init__()
@@ -47,6 +53,7 @@ class SentenceAnalysisCoordinator(QObject):
         self.main_window = main_window
         self.translation_cache = translation_cache
         self.translation_service = translation_service
+        self.explanation_service = explanation_service
         self.settings_manager = settings_manager
 
         self.selected_block_text: Optional[str] = None
@@ -121,15 +128,106 @@ class SentenceAnalysisCoordinator(QObject):
         self.translation_completed.emit(result.text)
 
     def request_explanation(self) -> None:
-        """Request explanation of the currently selected block."""
+        """Request explanation of the currently selected block with translation fallback."""
         if not self.selected_block_text:
             self.main_window.show_error("No block selected")
             return
-        if not self._current_api_key():
+
+        api_key = self._current_api_key()
+        if not api_key:
             self.main_window.show_error("API key not configured")
             return
 
+        if not self.current_volume_id:
+            self.main_window.show_error("No volume loaded")
+            return
+
         self.explanation_requested.emit(self.selected_block_text)
+        self.explanation_started.emit()
+        normalized = normalize_text(self.selected_block_text)
+
+        cached = self.translation_cache.get(
+            volume_id=self.current_volume_id,
+            normalized_text=normalized,
+            lang="en",
+        )
+
+        if cached and cached.explanation:
+            self.explanation_completed.emit(cached.explanation)
+            return
+
+        translation_text = cached.translation if cached else None
+        translation_model = cached.model if cached else ""
+
+        if not translation_text:
+            self.explanation_loading.emit("Fetching translation...")
+
+            translation_result = self.translation_service.translate(
+                text=self.selected_block_text,
+                api_key=api_key,
+            )
+
+            if translation_result.is_error:
+                if cached and cached.explanation:
+                    self.explanation_completed.emit(f"{cached.explanation}\n\n(cached)")
+                else:
+                    self.explanation_failed.emit(translation_result.error or "Unknown error")
+                return
+
+            translation_text = translation_result.text
+            translation_model = translation_result.model
+
+            record = CacheRecord(
+                normalized_text=normalized,
+                lang="en",
+                translation=translation_text,
+                explanation=cached.explanation if cached else None,
+                model=translation_model,
+                updated_at=datetime.now(),
+            )
+
+            self.translation_cache.put(
+                volume_id=self.current_volume_id,
+                normalized_text=normalized,
+                lang="en",
+                record=record,
+            )
+
+            # Keep translation UI in sync when explanation triggers translation fetch
+            self.translation_completed.emit(translation_text)
+
+        self.explanation_loading.emit("Analyzing...")
+
+        explanation_result = self.explanation_service.explain(
+            original_jp=self.selected_block_text,
+            translation_en=translation_text,
+            api_key=api_key,
+        )
+
+        if not explanation_result.is_success():
+            if cached and cached.explanation:
+                self.explanation_completed.emit(f"{cached.explanation}\n\n(cached)")
+            else:
+                self.explanation_failed.emit(explanation_result.error or "Unknown error")
+            return
+
+        record_to_store = CacheRecord(
+            normalized_text=normalized,
+            lang="en",
+            translation=translation_text,
+            explanation=explanation_result.text,
+            model=explanation_result.model or translation_model,
+            updated_at=datetime.now(),
+        )
+
+        self.translation_cache.put(
+            volume_id=self.current_volume_id,
+            normalized_text=normalized,
+            lang="en",
+            record=record_to_store,
+        )
+
+        self.explanation_completed.emit(explanation_result.text)
 
     def on_panel_closed(self) -> None:
         """Called when user closes the panel."""

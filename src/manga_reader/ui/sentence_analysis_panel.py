@@ -86,6 +86,10 @@ class SentenceAnalysisPanel(QWidget):
         self.translation_text.clear()
         self.explanation_text.clear()
         self.status_label.clear()
+        self.translate_button.setEnabled(True)
+        self.translate_button.setText("Translate")
+        self.explain_button.setEnabled(True)
+        self.explain_button.setText("Explain")
 
     def set_translation_text(self, text: str) -> None:
         self.translation_text.setPlainText(text)
@@ -118,6 +122,30 @@ class SentenceAnalysisPanel(QWidget):
         self.status_label.setText("Ready")
         self.status_label.setStyleSheet("color: gray;")
 
+    def show_explanation_loading(self, message: str) -> None:
+        """Show loading state for explanation requests."""
+        self.explanation_text.clear()
+        self.explanation_text.setPlaceholderText(message)
+        self.explain_button.setEnabled(False)
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet("color: gray;")
+
+    def show_explanation_error(self, error: str) -> None:
+        """Show error state for explanations with retry affordance."""
+        self.explanation_text.setPlainText(f"Error: {error}")
+        self.explain_button.setEnabled(True)
+        self.explain_button.setText("Retry")
+        self.status_label.setText("Failed")
+        self.status_label.setStyleSheet("color: red;")
+
+    def show_explanation_success(self, text: str) -> None:
+        """Show successful explanation text."""
+        self.explanation_text.setPlainText(text)
+        self.explain_button.setEnabled(True)
+        self.explain_button.setText("Explain")
+        self.status_label.setText("Ready")
+        self.status_label.setStyleSheet("color: gray;")
+
     def clear(self) -> None:
         self.original_text.clear()
         self.translation_text.clear()
@@ -125,4 +153,6 @@ class SentenceAnalysisPanel(QWidget):
         self.status_label.clear()
         self.translate_button.setEnabled(True)
         self.translate_button.setText("Translate")
+        self.explain_button.setEnabled(True)
+        self.explain_button.setText("Explain")
         self.status_label.setStyleSheet("color: gray;")

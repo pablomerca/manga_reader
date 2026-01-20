@@ -96,6 +96,9 @@ class ReaderController(QObject):
         self.sentence_analysis_coordinator.translation_started.connect(self.sentence_panel.show_translation_loading)
         self.sentence_analysis_coordinator.translation_completed.connect(self.sentence_panel.show_translation_success)
         self.sentence_analysis_coordinator.translation_failed.connect(self.sentence_panel.show_translation_error)
+        self.sentence_analysis_coordinator.explanation_loading.connect(self.sentence_panel.show_explanation_loading)
+        self.sentence_analysis_coordinator.explanation_completed.connect(self.sentence_panel.show_explanation_success)
+        self.sentence_analysis_coordinator.explanation_failed.connect(self.sentence_panel.show_explanation_error)
         self.sentence_analysis_coordinator.block_selected.connect(self.sentence_panel.set_original_text)
         
         # Wire main window return to library signal

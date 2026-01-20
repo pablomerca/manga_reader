@@ -12,6 +12,7 @@ from manga_reader.services import (
     SettingsManager,
     TranslationResult,
     CacheRecord,
+    ExplanationResult,
 )
 
 
@@ -47,12 +48,21 @@ def settings_manager():
 
 
 @pytest.fixture
-def coordinator(mock_main_window, translation_cache, mock_translation_service, settings_manager):
+def mock_explanation_service():
+    """Provide a mocked ExplanationService."""
+    service = MagicMock()
+    service.explain = MagicMock()
+    return service
+
+
+@pytest.fixture
+def coordinator(mock_main_window, translation_cache, mock_translation_service, mock_explanation_service, settings_manager):
     """Create a SentenceAnalysisCoordinator with mocked dependencies."""
     return SentenceAnalysisCoordinator(
         main_window=mock_main_window,
         translation_cache=translation_cache,
         translation_service=mock_translation_service,
+        explanation_service=mock_explanation_service,
         settings_manager=settings_manager,
     )
 
@@ -250,59 +260,173 @@ class TestSentenceAnalysisCoordinatorTranslationRequest:
 class TestSentenceAnalysisCoordinatorExplanationRequest:
     """Tests for explanation request handling."""
 
-    def test_request_explanation_succeeds_with_api_key_and_block(
-        self, coordinator, mock_main_window, settings_manager
+    def test_explanation_uses_cached_value(
+        self, coordinator, translation_cache, settings_manager, mock_translation_service, mock_explanation_service
     ):
-        """Explanation request should succeed when API key and block are set."""
-        settings_manager.get_gemini_api_key.return_value = "test-key"
+        """If explanation is cached, services should not be called."""
+        settings_manager.get_gemini_api_key.return_value = "key"
         coordinator.on_block_selected("何か", "vol1")
 
-        signal_spy = MagicMock()
-        coordinator.explanation_requested.connect(signal_spy)
+        cached_record = CacheRecord(
+            normalized_text="何か",
+            lang="en",
+            translation="Something cached",
+            explanation="Cached explanation",
+            model="gemini-2.0-flash",
+            updated_at=datetime.now(),
+        )
+        translation_cache.put("vol1", "何か", "en", cached_record)
+
+        completed_spy = MagicMock()
+        coordinator.explanation_completed.connect(completed_spy)
 
         coordinator.request_explanation()
-        signal_spy.assert_called_once_with("何か")
-        mock_main_window.show_error.assert_not_called()
 
-    def test_request_explanation_fails_without_api_key(
+        completed_spy.assert_called_once_with("Cached explanation")
+        mock_translation_service.translate.assert_not_called()
+        mock_explanation_service.explain.assert_not_called()
+
+    def test_explanation_fetches_translation_if_missing(
+        self, coordinator, settings_manager, mock_translation_service, mock_explanation_service, translation_cache
+    ):
+        """When translation is not cached, explanation flow should fetch it first."""
+        settings_manager.get_gemini_api_key.return_value = "key"
+        coordinator.on_block_selected("何か", "vol1")
+
+        mock_translation_service.translate.return_value = TranslationResult(
+            text="Something",
+            model="gemini-2.0-flash",
+        )
+        mock_explanation_service.explain.return_value = ExplanationResult(
+            text="Explanation text",
+            model="gemini-2.0-flash",
+        )
+
+        completed_spy = MagicMock()
+        coordinator.explanation_completed.connect(completed_spy)
+
+        coordinator.request_explanation()
+
+        mock_translation_service.translate.assert_called_once()
+        mock_explanation_service.explain.assert_called_once_with(
+            original_jp="何か",
+            translation_en="Something",
+            api_key="key",
+        )
+        completed_spy.assert_called_once_with("Explanation text")
+
+        cached = translation_cache.get("vol1", "何か", "en")
+        assert cached is not None
+        assert cached.translation == "Something"
+        assert cached.explanation == "Explanation text"
+
+    def test_explanation_uses_cached_translation_to_skip_translate_call(
+        self, coordinator, translation_cache, settings_manager, mock_translation_service, mock_explanation_service
+    ):
+        """If translation is cached, explanation should skip translation service."""
+        settings_manager.get_gemini_api_key.return_value = "key"
+        coordinator.on_block_selected("走る", "vol1")
+
+        cached_record = CacheRecord(
+            normalized_text="走る",
+            lang="en",
+            translation="to run",
+            explanation=None,
+            model="gemini-2.0-flash",
+            updated_at=datetime.now(),
+        )
+        translation_cache.put("vol1", "走る", "en", cached_record)
+
+        mock_explanation_service.explain.return_value = ExplanationResult(
+            text="Explain cached translation",
+            model="gemini-2.0-flash",
+        )
+
+        coordinator.request_explanation()
+
+        mock_translation_service.translate.assert_not_called()
+        mock_explanation_service.explain.assert_called_once_with(
+            original_jp="走る",
+            translation_en="to run",
+            api_key="key",
+        )
+
+    def test_explanation_fails_when_translation_fails_without_cache(
+        self, coordinator, settings_manager, mock_translation_service, mock_main_window
+    ):
+        """Translation failure without cache should emit explanation_failed."""
+        settings_manager.get_gemini_api_key.return_value = "key"
+        coordinator.on_block_selected("何か", "vol1")
+
+        mock_translation_service.translate.return_value = TranslationResult(
+            text="",
+            model="gemini-2.0-flash",
+            error="API down",
+        )
+
+        failed_spy = MagicMock()
+        coordinator.explanation_failed.connect(failed_spy)
+
+        coordinator.request_explanation()
+
+        failed_spy.assert_called_once_with("API down")
+
+    def test_explanation_failure_emits_error(
+        self, coordinator, settings_manager, mock_translation_service, mock_explanation_service
+    ):
+        """Explanation failure should emit failed signal even when translation succeeded."""
+        settings_manager.get_gemini_api_key.return_value = "key"
+        coordinator.on_block_selected("何か", "vol1")
+
+        mock_translation_service.translate.return_value = TranslationResult(
+            text="Something",
+            model="gemini-2.0-flash",
+        )
+        mock_explanation_service.explain.return_value = ExplanationResult(
+            text=None,
+            model="gemini-2.0-flash",
+            error="No output",
+        )
+
+        failed_spy = MagicMock()
+        coordinator.explanation_failed.connect(failed_spy)
+
+        coordinator.request_explanation()
+
+        failed_spy.assert_called_once_with("No output")
+
+    def test_explanation_requires_api_key(
         self, coordinator, mock_main_window, settings_manager
     ):
-        """Explanation request should fail without API key."""
+        """Missing API key should block explanation flow."""
         settings_manager.get_gemini_api_key.return_value = None
         coordinator.on_block_selected("何か", "vol1")
 
-        signal_spy = MagicMock()
-        coordinator.explanation_requested.connect(signal_spy)
-
         coordinator.request_explanation()
-        signal_spy.assert_not_called()
+
         mock_main_window.show_error.assert_called()
 
-    def test_request_explanation_fails_without_selected_block(
+    def test_explanation_requires_selected_block(
         self, coordinator, mock_main_window, settings_manager
     ):
-        """Explanation request should fail without selected block."""
-        settings_manager.get_gemini_api_key.return_value = "test-key"
-
-        signal_spy = MagicMock()
-        coordinator.explanation_requested.connect(signal_spy)
+        """Missing selection should block explanation flow."""
+        settings_manager.get_gemini_api_key.return_value = "key"
 
         coordinator.request_explanation()
-        signal_spy.assert_not_called()
+
         mock_main_window.show_error.assert_called()
 
-    def test_request_explanation_emits_selected_text(
+    def test_explanation_requires_volume(
         self, coordinator, mock_main_window, settings_manager
     ):
-        """Explanation request should emit the selected block text."""
-        settings_manager.get_gemini_api_key.return_value = "test-key"
-        coordinator.on_block_selected("走っている", "vol1")
-
-        signal_spy = MagicMock()
-        coordinator.explanation_requested.connect(signal_spy)
+        """Missing volume should block explanation flow."""
+        settings_manager.get_gemini_api_key.return_value = "key"
+        coordinator.selected_block_text = "何か"
+        coordinator.current_volume_id = None
 
         coordinator.request_explanation()
-        signal_spy.assert_called_once_with("走っている")
+
+        mock_main_window.show_error.assert_called()
 
 
 class TestSentenceAnalysisCoordinatorPanelLifecycle:

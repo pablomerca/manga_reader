@@ -9,14 +9,13 @@ from typing import Optional
 class ExplanationResult:
     """Result of an explanation request."""
 
-    text: str
-    model: str
+    text: Optional[str]
+    model: Optional[str]
     error: Optional[str] = None
 
-    @property
-    def is_error(self) -> bool:
-        """True if explanation request failed."""
-        return self.error is not None
+    def is_success(self) -> bool:
+        """Return True when the call produced a usable explanation."""
+        return self.error is None and self.text is not None
 
 
 class ExplanationService(ABC):
@@ -27,12 +26,12 @@ class ExplanationService(ABC):
     """
 
     @abstractmethod
-    def explain(self, text: str, api_key: str) -> ExplanationResult:
-        """
-        Provide explanation/analysis for Japanese text.
+    def explain(self, original_jp: str, translation_en: str, api_key: str) -> ExplanationResult:
+        """Provide explanation/analysis for Japanese text.
 
         Args:
-            text: Japanese text to explain.
+            original_jp: Original Japanese text from OCR block.
+            translation_en: English translation to ground the explanation.
             api_key: Gemini API key for authentication.
 
         Returns:
