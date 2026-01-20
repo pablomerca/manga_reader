@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -42,10 +43,13 @@ class SentenceAnalysisPanel(QWidget):
         main_layout.addWidget(self.original_text)
 
         actions_layout = QHBoxLayout()
+        self.copy_button = QPushButton("Copy")
+        self.copy_button.clicked.connect(self._copy_original_text)
         self.translate_button = QPushButton("Translate")
         self.translate_button.clicked.connect(self.translate_clicked.emit)
         self.explain_button = QPushButton("Explain")
         self.explain_button.clicked.connect(self.explain_clicked.emit)
+        actions_layout.addWidget(self.copy_button)
         actions_layout.addWidget(self.translate_button)
         actions_layout.addWidget(self.explain_button)
         actions_layout.addStretch()
@@ -58,9 +62,8 @@ class SentenceAnalysisPanel(QWidget):
         self.translation_text = QTextEdit()
         self.translation_text.setReadOnly(True)
         self.translation_text.setPlaceholderText("(Not requested yet)")
-        self.translation_text.setMinimumHeight(140)
-        self.translation_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        main_layout.addWidget(self.translation_text, 1)
+        self.translation_text.setFixedHeight(120)
+        main_layout.addWidget(self.translation_text)
 
         self.explanation_label = QLabel("Explanation")
         self.explanation_label.setStyleSheet("font-weight: bold;")
@@ -69,9 +72,8 @@ class SentenceAnalysisPanel(QWidget):
         self.explanation_text = QTextEdit()
         self.explanation_text.setReadOnly(True)
         self.explanation_text.setPlaceholderText("(Not requested yet)")
-        self.explanation_text.setMinimumHeight(200)
         self.explanation_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        main_layout.addWidget(self.explanation_text, 2)
+        main_layout.addWidget(self.explanation_text, 1)
 
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: gray;")
@@ -83,6 +85,13 @@ class SentenceAnalysisPanel(QWidget):
         close_btn.setMaximumHeight(32)
         close_btn.clicked.connect(self.close_clicked.emit)
         main_layout.addWidget(close_btn)
+
+    def _copy_original_text(self) -> None:
+        """Copy the original text to clipboard."""
+        text = self.original_text.toPlainText()
+        if text:
+            clipboard = QApplication.clipboard()
+            clipboard.setText(text)
 
     def set_original_text(self, text: str) -> None:
         self.original_text.setPlainText(text)
