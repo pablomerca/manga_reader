@@ -27,15 +27,9 @@ class SentenceAnalysisPanel(QWidget):
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.setSpacing(8)
 
-        header_layout = QHBoxLayout()
         title = QLabel("Sentence Analysis")
         title.setStyleSheet("font-weight: bold;")
-        header_layout.addWidget(title)
-        header_layout.addStretch()
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.close_clicked.emit)
-        header_layout.addWidget(close_btn)
-        main_layout.addLayout(header_layout)
+        main_layout.addWidget(title)
 
         self.original_label = QLabel("Original")
         self.original_label.setStyleSheet("font-weight: bold;")
@@ -83,6 +77,12 @@ class SentenceAnalysisPanel(QWidget):
         self.status_label.setStyleSheet("color: gray;")
         main_layout.addWidget(self.status_label)
         main_layout.addStretch()
+
+        # Close button at the bottom for consistency with context panel
+        close_btn = QPushButton("Close")
+        close_btn.setMaximumHeight(32)
+        close_btn.clicked.connect(self.close_clicked.emit)
+        main_layout.addWidget(close_btn)
 
     def set_original_text(self, text: str) -> None:
         self.original_text.setPlainText(text)
