@@ -446,6 +446,9 @@ class ReaderController(QObject):
         text = block.full_text
         volume_id = str(self.current_volume.volume_path)
 
+        # Determine if we need to re-render the page
+        need_render = False
+        
         # Force single page while sentence panel is open; remember previous mode
         if self.view_mode.name == "double":
             self._sentence_previous_view_mode = self.view_mode
@@ -455,11 +458,18 @@ class ReaderController(QObject):
                 current_page_number=self.current_page_number,
                 last_clicked_page_index=clicked_page,
             )
-            self.current_page_number = target_page
-            self._render_current_page()
+            # Only render if we're changing pages or switching from double mode
+            if target_page != self.current_page_number or self._sentence_previous_view_mode is not None:
+                self.current_page_number = target_page
+                need_render = True
         else:
-            # Already in single-page mode, just use the clicked page
-            self.current_page_number = clicked_page
+            # Already in single-page mode, only render if changing pages
+            if clicked_page != self.current_page_number:
+                self.current_page_number = clicked_page
+                need_render = True
+        
+        # Only render if we need to (preserves zoom level when clicking blocks on same page)
+        if need_render:
             self._render_current_page()
 
         self.sentence_panel.set_original_text(text)
