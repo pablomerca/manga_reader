@@ -145,6 +145,7 @@ class SentenceAnalysisCoordinator(QObject):
         self.explanation_requested.emit(self.selected_block_text)
         self.explanation_started.emit()
         normalized = normalize_text(self.selected_block_text)
+        translation_emitted = False
 
         cached = self.translation_cache.get(
             volume_id=self.current_volume_id,
@@ -153,6 +154,9 @@ class SentenceAnalysisCoordinator(QObject):
         )
 
         if cached and cached.explanation:
+            if cached.translation:
+                self.translation_completed.emit(cached.translation)
+                translation_emitted = True
             self.explanation_completed.emit(cached.explanation)
             return
 
@@ -195,6 +199,11 @@ class SentenceAnalysisCoordinator(QObject):
 
             # Keep translation UI in sync when explanation triggers translation fetch
             self.translation_completed.emit(translation_text)
+            translation_emitted = True
+
+        if translation_text and not translation_emitted:
+            self.translation_completed.emit(translation_text)
+            translation_emitted = True
 
         self.explanation_loading.emit("Analyzing...")
 

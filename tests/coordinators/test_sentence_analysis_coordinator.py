@@ -304,6 +304,8 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
 
         completed_spy = MagicMock()
         coordinator.explanation_completed.connect(completed_spy)
+        translation_spy = MagicMock()
+        coordinator.translation_completed.connect(translation_spy)
 
         coordinator.request_explanation()
 
@@ -314,6 +316,7 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
             api_key="key",
         )
         completed_spy.assert_called_once_with("Explanation text")
+        translation_spy.assert_called_once_with("Something")
 
         cached = translation_cache.get("vol1", "何か", "en")
         assert cached is not None
@@ -342,6 +345,9 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
             model="gemini-2.0-flash",
         )
 
+        translation_spy = MagicMock()
+        coordinator.translation_completed.connect(translation_spy)
+
         coordinator.request_explanation()
 
         mock_translation_service.translate.assert_not_called()
@@ -350,6 +356,7 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
             translation_en="to run",
             api_key="key",
         )
+        translation_spy.assert_called_once_with("to run")
 
     def test_explanation_fails_when_translation_fails_without_cache(
         self, coordinator, settings_manager, mock_translation_service, mock_main_window
