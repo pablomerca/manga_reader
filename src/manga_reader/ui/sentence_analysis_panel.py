@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QTextEdit,
+    QSizePolicy,
 )
 
 
@@ -63,8 +64,9 @@ class SentenceAnalysisPanel(QWidget):
         self.translation_text = QTextEdit()
         self.translation_text.setReadOnly(True)
         self.translation_text.setPlaceholderText("(Not requested yet)")
-        self.translation_text.setFixedHeight(100)
-        main_layout.addWidget(self.translation_text)
+        self.translation_text.setMinimumHeight(140)
+        self.translation_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        main_layout.addWidget(self.translation_text, 1)
 
         self.explanation_label = QLabel("Explanation")
         self.explanation_label.setStyleSheet("font-weight: bold;")
@@ -73,8 +75,9 @@ class SentenceAnalysisPanel(QWidget):
         self.explanation_text = QTextEdit()
         self.explanation_text.setReadOnly(True)
         self.explanation_text.setPlaceholderText("(Not requested yet)")
-        self.explanation_text.setFixedHeight(120)
-        main_layout.addWidget(self.explanation_text)
+        self.explanation_text.setMinimumHeight(200)
+        self.explanation_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        main_layout.addWidget(self.explanation_text, 2)
 
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: gray;")

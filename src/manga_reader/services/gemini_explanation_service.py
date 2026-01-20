@@ -20,11 +20,11 @@ Original Japanese: {original_jp}
 English Translation: {translation_en}
 
 [Instruction]
-Provide a concise explanation covering:
+Provide a short, concise explanation covering:
 
 1. **Semantic Parsing** — If the sentence contains uncommon grammar or complex structure, briefly explain the grammatical pattern and how it contributes to meaning.
-2. **Standard Form Suggestion** — Suggest the most common/standard way to express the same idea in conversational Japanese (for use in Jmdict-style lookups). Only if strictly relevant.
-3. **Idioms & Cultural Notes** — Explain any idioms, cultural references, or pragmatic nuances that a literal translation might miss. Only include if relevant.
+2. **Standard Form Suggestion (optional)** — Suggest the most common/standard way to express the same idea in conversational Japanese (for use in Jmdict-style lookups). Only if strictly relevant.
+3. **Idioms & Cultural Notes (optional)** — Explain any idioms, cultural references, or pragmatic nuances that a literal translation might miss. Only include if relevant.
 
 Focus on what a learner would not immediately understand from the translation alone.
 Keep your response very concise and short, avoid redundancy and fillers.
