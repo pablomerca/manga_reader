@@ -30,7 +30,7 @@ export class EventRouter {
         });
 
         if (this.viewportEl) {
-            // Zoom with Ctrl+wheel
+            // Zoom with mouse wheel
             this.viewportEl.addEventListener("wheel", (e) => {
                 if (this.callbacks.onWheelZoom) {
                     this.callbacks.onWheelZoom(e);

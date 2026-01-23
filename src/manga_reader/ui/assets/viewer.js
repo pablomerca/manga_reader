@@ -170,8 +170,6 @@ class MangaViewer {
     }
 
     handleWheelZoom(event) {
-        if (!event.ctrlKey && !event.metaKey) return;
-
         event.preventDefault();
 
         const direction = event.deltaY < 0 ? 1 : -1;
