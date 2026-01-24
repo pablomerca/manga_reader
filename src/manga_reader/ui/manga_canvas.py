@@ -126,10 +126,21 @@ class MangaCanvas(QWidget):
         
         self.current_page: MangaPage | None = None
         
+        # Add load-finished handler to detect WebEngine failures
+        self.web_view.loadFinished.connect(self._on_load_finished)
+        print("DEBUG: WebEngine load signal connected.")
+        
         # 2. Load the static HTML viewer
         viewer_path = TEMPLATES_DIR / "viewer.html"
         print(f"DEBUG: Loading viewer from {viewer_path}")
         self.web_view.load(QUrl.fromLocalFile(str(viewer_path)))
+    
+    def _on_load_finished(self, success: bool):
+        """Handle completion of HTML viewer load."""
+        if success:
+            print("DEBUG: Viewer HTML loaded successfully.")
+        else:
+            print("ERROR: Failed to load viewer HTML. Renderer may have crashed or URL is invalid.")
 
     def eventFilter(self, obj, event):
         """Intercept key events to prevent browser scrolling/navigation."""

@@ -32,12 +32,15 @@ def main():
     Bootstrap the application following the Composition Root pattern.
     This is the only place that knows how to instantiate and wire all components.
     """
+
     # 1. Initialize Application
     app = QApplication(sys.argv)
+    print("DEBUG: QApplication initialized successfully.")
     app.setApplicationName("Manga Reader")
     app.setOrganizationName("MangaReader")
     
     # 2. Initialize Services & Infrastructure
+    print("DEBUG: Initializing services and infrastructure...")
     morphology_service = MorphologyService()
     dictionary_service = DictionaryService()
     ingestor = VolumeIngestor()
@@ -45,6 +48,7 @@ def main():
     translation_cache = FileTranslationCache()
     translation_service = GeminiTranslationService()
     explanation_service = GeminiExplanationService()
+    print("DEBUG: Services initialized.")
 
     # TODO: In production, migrate to proper OS-specific paths (~/.local/share, etc.)
 
@@ -52,25 +56,33 @@ def main():
     project_root = Path(__file__).parent.parent.parent
 
     db_path = project_root / "vocab.db"
+    print(f"DEBUG: Database path: {db_path}")
     database_manager = DatabaseManager(db_path)
     database_manager.ensure_schema()
     vocabulary_service = VocabularyService(database_manager, morphology_service)
+    print("DEBUG: Database manager initialized.")
     
     # Initialize library persistence and thumbnail service
     library_repository = LibraryRepository(database_manager.connection)
     thumbnail_service = ThumbnailService()
     
     # 3. Construct UI (injecting dependencies)
+    print("DEBUG: Building UI components...")
     library_screen = LibraryScreen()
+    print("DEBUG: LibraryScreen created.")
     canvas = MangaCanvas(morphology_service=morphology_service)
+    print("DEBUG: MangaCanvas created.")
     context_panel = WordContextPanel()
     sentence_panel = SentenceAnalysisPanel()
     main_window = MainWindow()
+    print("DEBUG: MainWindow created.")
     main_window.set_canvas(canvas)
     main_window.set_context_panel(context_panel)
     main_window.set_sentence_panel(sentence_panel)
+    print("DEBUG: Canvas and panels attached to MainWindow.")
     
     # 4. Instantiate Coordinators (Dependency Injection)
+    print("DEBUG: Instantiating coordinators...")
     word_interaction = WordInteractionCoordinator(
         canvas=canvas,
         dictionary_service=dictionary_service,
@@ -107,6 +119,7 @@ def main():
         thumbnail_service=thumbnail_service,
         main_window=main_window,
     )
+    print("DEBUG: Coordinators initialized.")
 
     controller = ReaderController(
         main_window=main_window,
@@ -120,6 +133,7 @@ def main():
         sentence_analysis_coordinator=sentence_analysis_coordinator,
         sentence_analysis_panel=sentence_panel,
     )
+    print("DEBUG: ReaderController initialized.")
     
     # 5. Inject controller into MainWindow and let it wire signals internally
     main_window.set_controller(controller)
@@ -134,17 +148,29 @@ def main():
     context_panel.appearance_clicked_with_coords.connect(
         controller.handle_navigate_to_appearance
     )
+    print("DEBUG: Signal connections established.")
 
     # Connect coordinator requests back to controller (already wired inside controller ctor)
     
     # 6. Show library on startup
+    print("DEBUG: Displaying library view...")
     library_coordinator.show_library()
+    print("DEBUG: Library view displayed.")
     
     # 7. Start event loop
+    print("DEBUG: Showing main window and starting event loop...")
     main_window.show()
+    print("DEBUG: Main window shown. Event loop starting.")
     
     return app.exec()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        exit_code = main()
+        sys.exit(exit_code if exit_code is not None else 0)
+    except Exception as e:
+        print(f"FATAL EXCEPTION: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
