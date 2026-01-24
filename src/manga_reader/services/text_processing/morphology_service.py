@@ -166,5 +166,3 @@ class MorphologyService:
             List of Token objects filtered to adverbs only
         """
         return self.extract_words(text, ("ADVERB",))
-
-

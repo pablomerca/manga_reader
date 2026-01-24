@@ -2,8 +2,8 @@
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
-from manga_reader.services.translation_service import TranslationService, TranslationResult
-from manga_reader.services.explanation_service import ExplanationService, ExplanationResult
+from manga_reader.services.translation import TranslationService, TranslationResult
+from manga_reader.services.explanation import ExplanationService, ExplanationResult
 
 
 class WorkerSignals(QObject):

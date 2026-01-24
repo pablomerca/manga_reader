@@ -8,12 +8,13 @@ from PySide6.QtCore import QObject, QThreadPool, Signal, Slot
 from manga_reader.services import (
     CacheRecord,
     ExplanationService,
+    ExplanationWorker,
     SettingsManager,
     TranslationCache,
     TranslationService,
+    TranslationWorker,
     normalize_text,
 )
-from manga_reader.services.api_workers import TranslationWorker, ExplanationWorker
 from manga_reader.ui import MainWindow
 
 

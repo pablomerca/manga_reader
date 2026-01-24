@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from manga_reader.core import TrackedWord, WordAppearance
 from manga_reader.io import DatabaseManager
-from manga_reader.services.morphology_service import MorphologyService, Token
+from manga_reader.services.text_processing import MorphologyService, Token
 
 
 class VocabularyService:

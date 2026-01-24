@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from manga_reader.services.translation_cache import CacheRecord, TranslationCache
+from manga_reader.services.caching.translation_cache import CacheRecord, TranslationCache
 
 
 class InMemoryTranslationCache(TranslationCache):

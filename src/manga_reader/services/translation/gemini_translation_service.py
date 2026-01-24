@@ -6,7 +6,7 @@ from datetime import datetime
 import google.genai as genai
 from google.genai import types
 
-from manga_reader.services.translation_service import TranslationResult, TranslationService
+from manga_reader.services.translation.translation_service import TranslationResult, TranslationService
 
 
 class GeminiTranslationService(TranslationService):
@@ -125,11 +125,11 @@ Japanese text:
                     return TranslationResult(
                         text="",
                         model=self.MODEL_NAME,
-                    error="Request timed out. Please check your connection.",
-                )
-            else:
-                return TranslationResult(
-                    text="",
-                    model=self.MODEL_NAME,
-                    error=f"Translation failed: {str(e)}",
-                )
+                        error="Request timed out. Please check your connection.",
+                    )
+                else:
+                    return TranslationResult(
+                        text="",
+                        model=self.MODEL_NAME,
+                        error=f"Translation failed: {str(e)}",
+                    )

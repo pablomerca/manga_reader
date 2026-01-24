@@ -30,9 +30,9 @@ class ExplanationService(ABC):
         """Provide explanation/analysis for Japanese text.
 
         Args:
-            original_jp: Original Japanese text from OCR block.
-            translation_en: English translation to ground the explanation.
-            api_key: Gemini API key for authentication.
+            original_jp: Original Japanese text
+            translation_en: English translation
+            api_key: API key for provider authentication.
 
         Returns:
             ExplanationResult with explanation text or error message.

@@ -1,11 +1,12 @@
 """Gemini Explanation Service - Provides sentence-level explanations via Google Gemini API."""
 
 import time
+from datetime import datetime
 
 import google.genai as genai
 from google.genai import types
 
-from manga_reader.services.explanation_service import ExplanationService, ExplanationResult
+from manga_reader.services.explanation.explanation_service import ExplanationService, ExplanationResult
 
 
 class GeminiExplanationService(ExplanationService):
@@ -49,7 +50,6 @@ Keep your response very concise and short, avoid redundancy and fillers.
                 )
 
                 # Debug: Log the prompt and request details
-                from datetime import datetime
                 print(f"\n[EXPLANATION REQUEST DEBUG]")
                 print(f"Attempt: {attempt}/{max_retries}")
                 print(f"Model: {self.MODEL_NAME}")
@@ -78,7 +78,6 @@ Keep your response very concise and short, avoid redundancy and fillers.
                         error="Empty response from API",
                     )
 
-                from datetime import datetime
                 print(f"[EXPLANATION SUCCESS] Response received on attempt {attempt}")
                 print(f"Response length: {len(response.text)} chars")
                 print(f"Timestamp: {datetime.now().isoformat()}")
@@ -94,7 +93,6 @@ Keep your response very concise and short, avoid redundancy and fillers.
                 error_msg = str(exc).lower()
 
                 # Debug: Log the full exception details
-                from datetime import datetime
                 print(f"\n[EXPLANATION ERROR DEBUG]")
                 print(f"Attempt: {attempt}/{max_retries}")
                 print(f"Exception type: {type(exc).__name__}")
@@ -130,11 +128,11 @@ Keep your response very concise and short, avoid redundancy and fillers.
                     return ExplanationResult(
                         text=None,
                         model=self.MODEL_NAME,
-                    error="Request timed out. Please check your connection.",
-                )
+                        error="Request timed out. Please check your connection.",
+                    )
 
-            return ExplanationResult(
-                text=None,
-                model=self.MODEL_NAME,
-                error=f"Explanation failed: {exc}",
-            )
+                return ExplanationResult(
+                    text=None,
+                    model=self.MODEL_NAME,
+                    error=f"Explanation failed: {exc}",
+                )
