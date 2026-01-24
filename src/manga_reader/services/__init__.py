@@ -13,6 +13,7 @@ from manga_reader.services.gemini_explanation_service import GeminiExplanationSe
 from manga_reader.services.explanation_service import ExplanationService, ExplanationResult
 from manga_reader.services.settings_manager import SettingsManager
 from manga_reader.services.text_normalization import normalize_text
+from manga_reader.services.api_workers import TranslationWorker, ExplanationWorker, WorkerSignals
 
 __all__ = [
 	"DictionaryEntry",
@@ -34,4 +35,7 @@ __all__ = [
 	"ExplanationResult",
 	"SettingsManager",
 	"normalize_text",
+	"TranslationWorker",
+	"ExplanationWorker",
+	"WorkerSignals",
 ]

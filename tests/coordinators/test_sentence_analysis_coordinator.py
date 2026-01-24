@@ -1,10 +1,10 @@
 """Unit tests for SentenceAnalysisCoordinator."""
 
 from datetime import datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, QCoreApplication
 
 from manga_reader.coordinators import SentenceAnalysisCoordinator
 from manga_reader.services import (
@@ -40,6 +40,27 @@ def mock_translation_service():
 
 
 @pytest.fixture
+def coordinator_with_sync_workers(mock_main_window, translation_cache, mock_translation_service, mock_explanation_service, settings_manager):
+    """Create coordinator with synchronous worker execution for tests."""
+    coordinator = SentenceAnalysisCoordinator(
+        main_window=mock_main_window,
+        translation_cache=translation_cache,
+        translation_service=mock_translation_service,
+        explanation_service=mock_explanation_service,
+        settings_manager=settings_manager,
+    )
+    
+    # Patch the thread pool to execute synchronously
+    import unittest.mock
+    def sync_start(worker):
+        """Execute worker synchronously instead of in thread pool."""
+        worker.run()
+    
+    coordinator.thread_pool.start = unittest.mock.MagicMock(side_effect=sync_start)
+    return coordinator
+
+
+@pytest.fixture
 def settings_manager():
     """Provide a settings manager with test API key."""
     manager = MagicMock()
@@ -65,6 +86,37 @@ def coordinator(mock_main_window, translation_cache, mock_translation_service, m
         explanation_service=mock_explanation_service,
         settings_manager=settings_manager,
     )
+
+
+def process_qt_events():
+    """Process pending Qt events to allow workers to complete."""
+    import time
+    app = QCoreApplication.instance()
+    if app:
+        # Give workers time to run in background threads
+        for _ in range(50):  # Wait up to 500ms
+            app.processEvents()
+            time.sleep(0.01)
+
+
+def wait_for_signal(signal, timeout_ms=1000):
+    """
+    Wait for a signal to be emitted within timeout.
+    
+    Usage:
+        spy = MagicMock()
+        signal.connect(spy)
+        # ... code that emits signal ...
+        wait_for_signal(signal)
+        spy.assert_called()
+    """
+    import time
+    app = QCoreApplication.instance()
+    if app:
+        # Process events to allow background workers to complete
+        for _ in range(timeout_ms // 10):
+            app.processEvents()
+            time.sleep(0.01)
 
 
 class TestSentenceAnalysisCoordinatorInitialization:
@@ -172,9 +224,10 @@ class TestSentenceAnalysisCoordinatorTranslationRequest:
         mock_translation_service.translate.assert_not_called()
 
     def test_request_translation_with_cache_miss_calls_service(
-        self, coordinator, mock_translation_service, settings_manager
+        self, coordinator_with_sync_workers, mock_translation_service, settings_manager
     ):
         """Translation should call service on cache miss."""
+        coordinator = coordinator_with_sync_workers
         settings_manager.get_gemini_api_key.return_value = "test-key"
         coordinator.on_block_selected("何か", "vol1")
         
@@ -184,15 +237,18 @@ class TestSentenceAnalysisCoordinatorTranslationRequest:
         )
 
         coordinator.request_translation()
+        process_qt_events()
+        
         mock_translation_service.translate.assert_called_once_with(
             text="何か",
             api_key="test-key"
         )
 
     def test_request_translation_stores_result_in_cache(
-        self, coordinator, translation_cache, mock_translation_service, settings_manager
+        self, coordinator_with_sync_workers, translation_cache, mock_translation_service, settings_manager
     ):
         """Successful translation should be stored in cache."""
+        coordinator = coordinator_with_sync_workers
         settings_manager.get_gemini_api_key.return_value = "test-key"
         coordinator.on_block_selected("何か", "vol1")
         
@@ -202,15 +258,17 @@ class TestSentenceAnalysisCoordinatorTranslationRequest:
         )
 
         coordinator.request_translation()
+        process_qt_events()
         
         cached = translation_cache.get("vol1", "何か", "en")
         assert cached is not None
         assert cached.translation == "Something"
 
     def test_request_translation_emits_error_on_failure(
-        self, coordinator, mock_translation_service, settings_manager
+        self, coordinator_with_sync_workers, mock_translation_service, settings_manager
     ):
         """Translation error should emit failed signal."""
+        coordinator = coordinator_with_sync_workers
         settings_manager.get_gemini_api_key.return_value = "test-key"
         coordinator.on_block_selected("何か", "vol1")
         
@@ -224,6 +282,8 @@ class TestSentenceAnalysisCoordinatorTranslationRequest:
         coordinator.translation_failed.connect(failed_spy)
 
         coordinator.request_translation()
+        process_qt_events()
+        
         failed_spy.assert_called_once_with("API error occurred")
 
     def test_request_translation_fails_without_api_key(
@@ -287,9 +347,10 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         mock_explanation_service.explain.assert_not_called()
 
     def test_explanation_fetches_translation_if_missing(
-        self, coordinator, settings_manager, mock_translation_service, mock_explanation_service, translation_cache
+        self, coordinator_with_sync_workers, settings_manager, mock_translation_service, mock_explanation_service, translation_cache
     ):
         """When translation is not cached, explanation flow should fetch it first."""
+        coordinator = coordinator_with_sync_workers
         settings_manager.get_gemini_api_key.return_value = "key"
         coordinator.on_block_selected("何か", "vol1")
 
@@ -308,6 +369,7 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         coordinator.translation_completed.connect(translation_spy)
 
         coordinator.request_explanation()
+        process_qt_events()
 
         mock_translation_service.translate.assert_called_once()
         mock_explanation_service.explain.assert_called_once_with(
@@ -324,9 +386,10 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         assert cached.explanation == "Explanation text"
 
     def test_explanation_uses_cached_translation_to_skip_translate_call(
-        self, coordinator, translation_cache, settings_manager, mock_translation_service, mock_explanation_service
+        self, coordinator_with_sync_workers, translation_cache, settings_manager, mock_translation_service, mock_explanation_service
     ):
         """If translation is cached, explanation should skip translation service."""
+        coordinator = coordinator_with_sync_workers
         settings_manager.get_gemini_api_key.return_value = "key"
         coordinator.on_block_selected("走る", "vol1")
 
@@ -349,6 +412,7 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         coordinator.translation_completed.connect(translation_spy)
 
         coordinator.request_explanation()
+        process_qt_events()
 
         mock_translation_service.translate.assert_not_called()
         mock_explanation_service.explain.assert_called_once_with(
@@ -359,9 +423,10 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         translation_spy.assert_called_once_with("to run")
 
     def test_explanation_fails_when_translation_fails_without_cache(
-        self, coordinator, settings_manager, mock_translation_service, mock_main_window
+        self, coordinator_with_sync_workers, settings_manager, mock_translation_service, mock_main_window
     ):
         """Translation failure without cache should emit explanation_failed."""
+        coordinator = coordinator_with_sync_workers
         settings_manager.get_gemini_api_key.return_value = "key"
         coordinator.on_block_selected("何か", "vol1")
 
@@ -375,13 +440,15 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         coordinator.explanation_failed.connect(failed_spy)
 
         coordinator.request_explanation()
+        process_qt_events()
 
         failed_spy.assert_called_once_with("API down")
 
     def test_explanation_failure_emits_error(
-        self, coordinator, settings_manager, mock_translation_service, mock_explanation_service
+        self, coordinator_with_sync_workers, settings_manager, mock_translation_service, mock_explanation_service
     ):
         """Explanation failure should emit failed signal even when translation succeeded."""
+        coordinator = coordinator_with_sync_workers
         settings_manager.get_gemini_api_key.return_value = "key"
         coordinator.on_block_selected("何か", "vol1")
 
@@ -399,6 +466,7 @@ class TestSentenceAnalysisCoordinatorExplanationRequest:
         coordinator.explanation_failed.connect(failed_spy)
 
         coordinator.request_explanation()
+        process_qt_events()
 
         failed_spy.assert_called_once_with("No output")
 
