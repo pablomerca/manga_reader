@@ -213,6 +213,7 @@ class TestHandleVolumeOpened:
         # Setup library coordinator mock to return a library_volume with id
         library_volume_mock = MagicMock()
         library_volume_mock.id = 1
+        library_volume_mock.last_page_read = 0
         controller.library_coordinator.add_volume_to_library.return_value = library_volume_mock
         
         controller.handle_volume_opened(volume_path)

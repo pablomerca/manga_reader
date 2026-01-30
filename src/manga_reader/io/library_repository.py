@@ -60,14 +60,14 @@ class LibraryRepository:
             cur.execute(
                 """
                 INSERT INTO library_volumes (
-                    title, folder_path, cover_image_path, date_added, last_opened
-                ) VALUES (?, ?, ?, ?, ?)
+                    title, folder_path, cover_image_path, date_added, last_opened, last_page_read
+                ) VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(folder_path) DO UPDATE SET
                     title = excluded.title,
                     cover_image_path = excluded.cover_image_path,
                     last_opened = excluded.last_opened
                 """,
-                (title, str(folder_path), str(cover_image_path), now, now),
+                (title, str(folder_path), str(cover_image_path), now, now, 0),
             )
             self.connection.commit()
         except sqlite3.Error as e:
@@ -92,7 +92,7 @@ class LibraryRepository:
             cur = self.connection.cursor()
             cur.execute(
                 """
-                SELECT id, title, folder_path, cover_image_path, date_added, last_opened
+                SELECT id, title, folder_path, cover_image_path, date_added, last_opened, last_page_read
                 FROM library_volumes
                 WHERE folder_path = ?
                 """,
@@ -123,7 +123,7 @@ class LibraryRepository:
             cur = self.connection.cursor()
             cur.execute(
                 """
-                SELECT id, title, folder_path, cover_image_path, date_added, last_opened
+                SELECT id, title, folder_path, cover_image_path, date_added, last_opened, last_page_read
                 FROM library_volumes
                 WHERE id = ?
                 """,
@@ -153,7 +153,7 @@ class LibraryRepository:
             cur = self.connection.cursor()
             cur.execute(
                 """
-                SELECT id, title, folder_path, cover_image_path, date_added, last_opened
+                SELECT id, title, folder_path, cover_image_path, date_added, last_opened, last_page_read
                 FROM library_volumes
                 ORDER BY last_opened DESC
                 """
@@ -231,6 +231,69 @@ class LibraryRepository:
 
         return self.get_volume_by_path(folder_path)
 
+    def update_last_page_read(self, volume_id: int, page_index: int) -> LibraryVolume:
+        """Update the last read page index for a volume.
+
+        Args:
+            volume_id: Unique ID of the volume.
+            page_index: 0-indexed page number to persist.
+
+        Returns:
+            LibraryVolume: Updated volume entity.
+
+        Raises:
+            RuntimeError: If volume not found or database write fails.
+        """
+        if page_index < 0:
+            page_index = 0
+
+        try:
+            cur = self.connection.cursor()
+            cur.execute(
+                """
+                UPDATE library_volumes
+                SET last_page_read = ?
+                WHERE id = ?
+                """,
+                (page_index, volume_id),
+            )
+            if cur.rowcount == 0:
+                raise RuntimeError(f"Volume not found: {volume_id}")
+            self.connection.commit()
+        except sqlite3.Error as e:
+            raise RuntimeError(f"Failed to update last_page_read: {e}") from e
+
+        return self.get_volume_by_id(volume_id)
+
+    def get_last_page_read(self, volume_id: int) -> int:
+        """Retrieve the last read page index for a volume.
+
+        Args:
+            volume_id: Unique ID of the volume.
+
+        Returns:
+            int: Last read page index (0-indexed).
+
+        Raises:
+            RuntimeError: If volume not found or database read fails.
+        """
+        try:
+            cur = self.connection.cursor()
+            cur.execute(
+                """
+                SELECT last_page_read
+                FROM library_volumes
+                WHERE id = ?
+                """,
+                (volume_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError(f"Volume not found: {volume_id}")
+            return int(row["last_page_read"])
+        except sqlite3.Error as e:
+            raise RuntimeError(f"Failed to retrieve last_page_read: {e}") from e
+
     def delete_volume(self, folder_path: Path) -> None:
         """Remove a volume from the library (does NOT delete files).
         
@@ -301,4 +364,5 @@ class LibraryRepository:
             cover_image_path=Path(row["cover_image_path"]),
             date_added=row["date_added"],
             last_opened=row["last_opened"],
+            last_page_read=row["last_page_read"],
         )

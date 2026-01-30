@@ -64,7 +64,8 @@ class DatabaseManager:
                 folder_path TEXT NOT NULL UNIQUE,
                 cover_image_path TEXT,
                 date_added INTEGER NOT NULL,
-                last_opened INTEGER NOT NULL
+                last_opened INTEGER NOT NULL,
+                last_page_read INTEGER NOT NULL DEFAULT 0
             );
             """
         )
@@ -80,6 +81,13 @@ class DatabaseManager:
             ON word_appearances(word_id);
             """
         )
+        # Backfill schema changes for existing databases
+        cur.execute("PRAGMA table_info(library_volumes);")
+        library_columns = {row[1] for row in cur.fetchall()}
+        if "last_page_read" not in library_columns:
+            cur.execute(
+                "ALTER TABLE library_volumes ADD COLUMN last_page_read INTEGER NOT NULL DEFAULT 0;"
+            )
         self.connection.commit()
 
     # to be reviewed

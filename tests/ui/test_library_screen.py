@@ -39,6 +39,7 @@ def test_library_screen_displays_volumes():
             cover_image_path=Path("/cache/cover1.jpg"),
             date_added=1000,
             last_opened=1000,
+            last_page_read=0,
         ),
         LibraryVolume(
             id=2,
@@ -47,6 +48,7 @@ def test_library_screen_displays_volumes():
             cover_image_path=Path("/cache/cover2.jpg"),
             date_added=2000,
             last_opened=2000,
+            last_page_read=0,
         ),
     ]
     

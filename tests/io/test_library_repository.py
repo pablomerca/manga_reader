@@ -29,7 +29,8 @@ def db_connection():
             folder_path TEXT NOT NULL UNIQUE,
             cover_image_path TEXT,
             date_added INTEGER NOT NULL,
-            last_opened INTEGER NOT NULL
+            last_opened INTEGER NOT NULL,
+            last_page_read INTEGER NOT NULL DEFAULT 0
         );
         """
     )
@@ -62,6 +63,7 @@ def test_library_repository_add_volume(library_repo):
     assert volume.cover_image_path == cover_path.resolve()
     assert volume.date_added > 0
     assert volume.last_opened > 0
+    assert volume.last_page_read == 0
 
 
 def test_library_repository_get_volume_by_path(library_repo):

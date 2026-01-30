@@ -58,7 +58,8 @@ def db_connection(temp_db):
             folder_path TEXT NOT NULL UNIQUE,
             cover_image_path TEXT,
             date_added INTEGER NOT NULL,
-            last_opened INTEGER NOT NULL
+            last_opened INTEGER NOT NULL,
+            last_page_read INTEGER NOT NULL DEFAULT 0
         );
         """
     )

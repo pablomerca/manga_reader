@@ -105,7 +105,14 @@ class ReaderController(QObject):
         self.main_window.return_to_library_requested.connect(self._handle_return_to_library)
     
     @Slot(Path)
-    def handle_volume_opened(self, volume_path: Path, show_success_dialog: bool = True, defer_render: bool = False):
+    def handle_volume_opened(
+        self,
+        volume_path: Path,
+        show_success_dialog: bool = True,
+        defer_render: bool = False,
+        save_previous_progress: bool = True,
+        resume_last_page: bool = True,
+    ):
         """
         Handle when user selects a volume folder.
         
@@ -114,7 +121,13 @@ class ReaderController(QObject):
             show_success_dialog: Whether to show "Volume Loaded" success dialog (default: True)
             defer_render: Whether to skip initial render (default: False). Used when jumping to
                          a specific page to avoid rendering page 0 first.
+            save_previous_progress: Whether to persist the last page of the current volume
+                                    before switching (default: True).
+            resume_last_page: Whether to resume from the saved last page (default: True).
         """
+        if save_previous_progress:
+            self._persist_current_progress()
+
         # Ingest the volume
         volume = self.ingestor.ingest_volume(volume_path)
         
@@ -145,6 +158,12 @@ class ReaderController(QObject):
                 library_volume = self.library_coordinator.add_volume_to_library(volume_path)
                 # Set the volume_id from the library so we can track it for multi-volume navigation
                 volume.volume_id = library_volume.id
+                if resume_last_page:
+                    last_page_read = min(
+                        library_volume.last_page_read,
+                        max(volume.total_pages - 1, 0),
+                    )
+                    self.current_page_number = last_page_read
             except RuntimeError as e:
                 # Log error but don't block reading
                 print(f"Warning: Could not add volume to library: {e}")
@@ -168,6 +187,26 @@ class ReaderController(QObject):
     def handle_sync_context_requested(self):
         """Trigger synchronization of tracked word appearances for the current volume."""
         self.context_sync_coordinator.synchronize_current_volume()
+
+    def _persist_current_progress(self) -> None:
+        """Persist the current volume's last page if possible."""
+        if self.current_volume is None or self.library_coordinator is None:
+            return
+        volume_id = getattr(self.current_volume, "volume_id", None)
+        if volume_id is None:
+            return
+        try:
+            self.library_coordinator.update_reading_progress(
+                volume_id=volume_id,
+                page_index=self.current_page_number,
+            )
+        except RuntimeError as e:
+            print(f"Warning: Could not persist reading progress: {e}")
+
+    @Slot()
+    def handle_app_closing(self) -> None:
+        """Persist progress when the application is closing."""
+        self._persist_current_progress()
     
     def _render_current_page(self):
         """Render the current page(s) to the canvas based on view mode."""
@@ -288,7 +327,13 @@ class ReaderController(QObject):
         if self.current_volume is None or Path(volume_path).resolve() != self.current_volume.volume_path.resolve():
             try:
                 # Load the volume silently (no dialog)
-                self.handle_volume_opened(Path(volume_path), show_success_dialog=False, defer_render=True)
+                self.handle_volume_opened(
+                    Path(volume_path),
+                    show_success_dialog=False,
+                    defer_render=True,
+                    save_previous_progress=False,
+                    resume_last_page=False,
+                )
             except Exception as e:
                 print(f"Warning: Could not restore volume: {e}")
                 # Continue with current volume if restoration fails
@@ -336,7 +381,13 @@ class ReaderController(QObject):
                 try:
                     library_volume = self.library_coordinator.library_repository.get_volume_by_id(volume_id)
                     # Load silently (no "Volume Loaded" dialog) with deferred render for smooth navigation
-                    self.handle_volume_opened(library_volume.folder_path, show_success_dialog=False, defer_render=True)
+                    self.handle_volume_opened(
+                        library_volume.folder_path,
+                        show_success_dialog=False,
+                        defer_render=True,
+                        save_previous_progress=False,
+                        resume_last_page=False,
+                    )
                     loaded_successfully = True
                 except RuntimeError:
                     # Volume not found by ID, will try fallback below
@@ -345,7 +396,13 @@ class ReaderController(QObject):
             # Fallback: if volume not found by ID in library, try using the volume path
             if not loaded_successfully and volume_path:
                 try:
-                    self.handle_volume_opened(Path(volume_path), show_success_dialog=False, defer_render=True)
+                    self.handle_volume_opened(
+                        Path(volume_path),
+                        show_success_dialog=False,
+                        defer_render=True,
+                        save_previous_progress=False,
+                        resume_last_page=False,
+                    )
                     loaded_successfully = True
                 except Exception as e:
                     # If fallback also fails, show error and return
@@ -415,6 +472,7 @@ class ReaderController(QObject):
     @Slot()
     def _handle_return_to_library(self):
         """Handle Ctrl+L to return to library."""
+        self._persist_current_progress()
         if self.library_coordinator:
             self.library_coordinator.show_library()
 

@@ -15,6 +15,7 @@ class LibraryVolume:
         cover_image_path: Path to cached thumbnail image.
         date_added: Unix timestamp when volume was added to library.
         last_opened: Unix timestamp when volume was last opened.
+        last_page_read: 0-indexed page number last read by the user.
     """
 
     id: int
@@ -23,3 +24,4 @@ class LibraryVolume:
     cover_image_path: Path
     date_added: int
     last_opened: int
+    last_page_read: int

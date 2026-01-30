@@ -150,6 +150,9 @@ def main():
     )
     print("DEBUG: Signal connections established.")
 
+    # Persist reading progress when the application is closing
+    app.aboutToQuit.connect(controller.handle_app_closing)
+
     # Connect coordinator requests back to controller (already wired inside controller ctor)
     
     # 6. Show library on startup

@@ -210,3 +210,19 @@ class LibraryCoordinator(QObject):
             self.library_screen.display_volumes(volumes)
         except RuntimeError as e:
             self.main_window.show_error("Library Load Error", str(e))
+
+    def update_reading_progress(self, volume_id: int, page_index: int) -> LibraryVolume:
+        """Persist the last read page for a volume.
+
+        Args:
+            volume_id: Unique ID of the volume.
+            page_index: 0-indexed page number.
+
+        Returns:
+            LibraryVolume: Updated volume entity.
+        """
+        return self.library_repository.update_last_page_read(volume_id, page_index)
+
+    def get_last_page_read(self, volume_id: int) -> int:
+        """Fetch last saved page index for a volume."""
+        return self.library_repository.get_last_page_read(volume_id)
