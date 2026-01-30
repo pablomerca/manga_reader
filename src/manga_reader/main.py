@@ -1,5 +1,6 @@
 """Main entry point for the manga reader application."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -27,11 +28,38 @@ from manga_reader.services import (
 from manga_reader.ui import LibraryScreen, MainWindow, MangaCanvas, WordContextPanel, SentenceAnalysisPanel
 
 
+def configure_qt_rendering() -> None:
+    """
+    Configure Qt rendering backend for stability.
+
+    Environment override:
+      - MANGA_READER_FORCE_SOFTWARE_RENDERING=1 -> force software rendering
+      - MANGA_READER_FORCE_SOFTWARE_RENDERING=0 -> force default (GPU)
+
+    If unset, software rendering is enabled by default on Linux.
+    """
+    setting = os.environ.get("MANGA_READER_FORCE_SOFTWARE_RENDERING")
+    if setting is not None:
+        force_software = setting.lower() in {"1", "true", "yes"}
+    else:
+        force_software = sys.platform.startswith("linux")
+
+    if not force_software:
+        return
+
+    os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
+    os.environ.setdefault("QT_QUICK_BACKEND", "software")
+    os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
+
+
 def main():
     """
     Bootstrap the application following the Composition Root pattern.
     This is the only place that knows how to instantiate and wire all components.
     """
+
+    # Work around GPU/GL context creation failures (optional)
+    configure_qt_rendering()
 
     # 1. Initialize Application
     app = QApplication(sys.argv)
