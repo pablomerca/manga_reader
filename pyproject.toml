@@ -18,6 +18,7 @@ dependencies = [
     "jamdict-data",             # The actual JMDict data files
     "python-dotenv",            # Environment variable management
     "google-genai",             # Google Gemini API client (new package)
+    "dango @ git+https://github.com/pablomerca/dango.git",  # Japanese morphology library
 ]
 
 [project.optional-dependencies]
