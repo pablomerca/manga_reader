@@ -1,7 +1,6 @@
 """Main Window - Application shell with menus and toolbar."""
 
 from pathlib import Path
-from typing import override
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QKeyEvent
@@ -366,7 +365,6 @@ class MainWindow(QMainWindow):
         canvas.show()
         self.setWindowTitle("Manga Reader")
     
-    @override   
     def keyPressEvent(self, event: QKeyEvent):
         """Handle keyboard events for navigation.
         
