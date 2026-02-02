@@ -1,6 +1,14 @@
 """Services layer - business logic and external integrations."""
 
-from manga_reader.services.dictionary_service import DictionaryEntry, DictionarySense, DictionaryService
+from manga_reader.services.dictionary_service import (
+	BreadcrumbItem,
+	DictionaryEntry,
+	DictionaryEntryFull,
+	DictionaryLookupResult,
+	DictionarySense,
+	DictionaryService,
+	KanjiEntry,
+)
 from manga_reader.services.vocabulary_service import VocabularyService
 from manga_reader.services.thumbnail_service import ThumbnailService
 from manga_reader.services.settings_manager import SettingsManager
@@ -19,7 +27,11 @@ from manga_reader.services.caching import TranslationCache, CacheRecord, InMemor
 
 __all__ = [
 	"DictionaryEntry",
+	"DictionaryEntryFull",
+	"DictionaryLookupResult",
 	"DictionarySense",
+	"KanjiEntry",
+	"BreadcrumbItem",
 	"DictionaryService",
 	"MorphologyService",
 	"Token",
