@@ -37,7 +37,8 @@ export class ChannelBridge {
                     'requestNavigation',
                     'blockClicked',
                     'trackWord',
-                    'viewWordContext'
+                    'viewWordContext',
+                    'showFullDefinition'
                 ];
                 
                 for (const method of requiredMethods) {
@@ -106,6 +107,15 @@ export class ChannelBridge {
      */
     viewWordContext(lemma) {
         this.connector.viewWordContext(lemma, () => {});
+    }
+
+    /**
+     * Show full definition in dictionary panel.
+     * 
+     * @param {string} lemma - Dictionary base form
+     */
+    showFullDefinition(lemma) {
+        this.connector.showFullDefinition(lemma, () => {});
     }
 
     /**

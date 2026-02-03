@@ -3,6 +3,7 @@
 from typing import List
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -18,6 +19,107 @@ from manga_reader.services import (
     DictionaryLookupResult,
     KanjiEntry,
 )
+
+
+class ClickableKanjiLabel(QLabel):
+    """
+    Custom QLabel that emits signal when individual kanji characters are clicked.
+    Calculates which kanji was clicked based on cursor position.
+    """
+    
+    kanji_clicked = Signal(str)  # Emits the clicked kanji character
+    
+    def __init__(self, text: str = "", is_header: bool = False):
+        super().__init__()
+        self.text_content = text
+        self.is_header = is_header
+        self._render_clickable_kanji(text)
+    
+    def _is_kanji(self, char: str) -> bool:
+        """Check if character is kanji."""
+        if not char:
+            return False
+        code = ord(char)
+        return (
+            (0x4E00 <= code <= 0x9FFF) or  # CJK Unified Ideographs
+            (0x3400 <= code <= 0x4DBF) or  # CJK Extension A
+            (0x20000 <= code <= 0x2A6DF) or  # CJK Extension B
+            (0x2A700 <= code <= 0x2B73F) or  # CJK Extension C
+            (0x2B740 <= code <= 0x2B81F) or  # CJK Extension D
+            (0x2B820 <= code <= 0x2CEAF) or  # CJK Extension E
+            (0xF900 <= code <= 0xFAFF) or  # CJK Compatibility Ideographs
+            (0x2F800 <= code <= 0x2FA1F)  # CJK Compatibility Ideographs Supplement
+        )
+    
+    def _render_clickable_kanji(self, text: str):
+        """Render text with clickable kanji styled appropriately."""
+        html_parts = []
+        
+        for char in text:
+            if self._is_kanji(char):
+                if self.is_header:
+                    # Header style: larger (28px), bold, lighter blue for easy clicking
+                    html_parts.append(
+                        f'<span style="color: #66b3ff; cursor: pointer; text-decoration: underline; '
+                        f'font-size: 28px; font-weight: bold;">{char}</span>'
+                    )
+                else:
+                    # Regular style: standard clickable kanji
+                    html_parts.append(
+                        f'<span style="color: #0066cc; cursor: pointer; text-decoration: underline;">{char}</span>'
+                    )
+            else:
+                # Non-kanji characters
+                if self.is_header:
+                    html_parts.append(f'<span style="font-size: 24px; font-weight: bold;">{char}</span>')
+                else:
+                    html_parts.append(char)
+        
+        self.setText(''.join(html_parts))
+        self.setTextFormat(Qt.TextFormat.RichText)
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+    
+    def mousePressEvent(self, event):
+        """Handle mouse click - determine which character was clicked."""
+        from PySide6.QtGui import QFont
+        
+        cursor_pos = event.pos()
+        x_pos = cursor_pos.x()
+        accumulated_width = 0
+        
+        for char_idx, char in enumerate(self.text_content):
+            # Create font with the actual styled size for accurate width calculation
+            styled_font = QFont(self.font())
+            
+            if self._is_kanji(char):
+                # Kanji use larger font in headers (28px in HTML)
+                if self.is_header:
+                    styled_font.setPixelSize(28)
+                    styled_font.setBold(True)
+                else:
+                    # Regular kanji use default size
+                    pass
+            else:
+                # Non-kanji characters (24px in headers)
+                if self.is_header:
+                    styled_font.setPixelSize(24)
+                    styled_font.setBold(True)
+                else:
+                    # Regular non-kanji use default size
+                    pass
+            
+            # Calculate width using the styled font
+            char_metrics = QFontMetrics(styled_font)
+            char_width = char_metrics.horizontalAdvance(char)
+            
+            # Check if click is within this character's bounds
+            if x_pos < accumulated_width + char_width:
+                # Found the clicked character
+                if self._is_kanji(char):
+                    self.kanji_clicked.emit(char)
+                return
+            
+            accumulated_width += char_width
 
 
 class DictionaryPanel(QWidget):
@@ -97,7 +199,7 @@ class DictionaryPanel(QWidget):
             return
         
         for idx, entry in enumerate(result.entries, 1):
-            entry_widget = self._create_word_entry_widget(entry, idx)
+            entry_widget = self._create_word_entry_widget(entry, idx, lemma)
             self.content_layout.insertWidget(
                 self.content_layout.count() - 1,  # Insert before stretch
                 entry_widget
@@ -166,13 +268,14 @@ class DictionaryPanel(QWidget):
             if item.widget():
                 item.widget().deleteLater()
     
-    def _create_word_entry_widget(self, entry: DictionaryEntryFull, entry_num: int) -> QWidget:
+    def _create_word_entry_widget(self, entry: DictionaryEntryFull, entry_num: int, lemma: str) -> QWidget:
         """
-        Create widget for a single word entry with clickable kanji.
+        Create widget for a single word entry with clickable kanji in header.
         
         Args:
             entry: DictionaryEntryFull object
             entry_num: Entry number for display
+            lemma: The searched lemma/word to display in header
             
         Returns:
             QWidget containing the formatted entry
@@ -180,42 +283,53 @@ class DictionaryPanel(QWidget):
         entry_widget = QWidget()
         entry_layout = QVBoxLayout(entry_widget)
         entry_layout.setContentsMargins(8, 8, 8, 8)
-        entry_layout.setSpacing(6)
-        entry_widget.setStyleSheet("background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;")
+        entry_layout.setSpacing(8)
+        entry_widget.setStyleSheet("background-color: #2d2d2d; border: 1px solid #444; border-radius: 4px; color: #e0e0e0;")
         
-        # Entry header
-        header_label = QLabel(f"<b>Entry {entry_num}</b>")
-        if entry.entry_id:
-            header_label.setText(f"<b>Entry {entry_num}</b> <small>(ID: {entry.entry_id})</small>")
-        entry_layout.addWidget(header_label)
+        # Entry header with clickable kanji
+        header_widget = QWidget()
+        header_layout = QVBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(4)
         
-        # Kanji and kana forms
-        forms_widget = QWidget()
-        forms_layout = QHBoxLayout(forms_widget)
-        forms_layout.setContentsMargins(0, 0, 0, 0)
-        forms_layout.setSpacing(8)
+        # Entry number label
+        entry_num_label = QLabel(f"<small style='color: #999;'>ENTRY {entry_num}</small>")
+        header_layout.addWidget(entry_num_label)
         
-        if entry.kanji_forms:
-            kanji_label = QLabel("Kanji:")
-            kanji_label.setStyleSheet("font-weight: bold;")
-            forms_layout.addWidget(kanji_label)
+        # Word/kanji header with clickable kanji - display SEARCHED LEMMA only
+        word_header = QWidget()
+        word_layout = QHBoxLayout(word_header)
+        word_layout.setContentsMargins(0, 0, 0, 0)
+        word_layout.setSpacing(8)
+        
+        # Create the main word display - showing the SEARCHED LEMMA with clickable kanji
+        kanji_header_label = self._create_clickable_kanji_header(lemma)
+        kanji_header_label.kanji_clicked.connect(self.kanji_clicked.emit)
+        word_layout.addWidget(kanji_header_label)
+        word_layout.addStretch()
+        header_layout.addWidget(word_header)
+        entry_layout.addWidget(header_widget)
+        
+        # Detailed forms section (non-clickable)
+        if entry.kanji_forms or entry.kana_forms:
+            forms_widget = QWidget()
+            forms_layout = QVBoxLayout(forms_widget)
+            forms_layout.setContentsMargins(8, 4, 8, 4)
+            forms_layout.setSpacing(4)
+            forms_widget.setStyleSheet("background-color: #1d1d1d; border-radius: 3px; padding: 4px;")
             
-            # Create clickable kanji labels
-            for kanji_form in entry.kanji_forms:
-                kanji_widget = self._create_clickable_kanji_label(kanji_form)
-                forms_layout.addWidget(kanji_widget)
-        
-        if entry.kana_forms:
-            kana_label = QLabel("Kana:")
-            kana_label.setStyleSheet("font-weight: bold; margin-left: 8px;")
-            forms_layout.addWidget(kana_label)
+            forms_text = ""
+            if entry.kanji_forms:
+                forms_text += f"<b>Kanji:</b> {', '.join(entry.kanji_forms)}"
+            if entry.kana_forms:
+                if forms_text:
+                    forms_text += "<br/>"
+                forms_text += f"<b>Kana:</b> {', '.join(entry.kana_forms)}"
             
-            kana_text = ", ".join(entry.kana_forms)
-            kana_value = QLabel(kana_text)
-            forms_layout.addWidget(kana_value)
-        
-        forms_layout.addStretch()
-        entry_layout.addWidget(forms_widget)
+            forms_label = QLabel(forms_text)
+            forms_label.setStyleSheet("color: #a0a0a0; font-size: 12px;")
+            forms_layout.addWidget(forms_label)
+            entry_layout.addWidget(forms_widget)
         
         # Senses (meanings)
         if entry.senses:
@@ -233,7 +347,7 @@ class DictionaryPanel(QWidget):
         
         return entry_widget
     
-    def _create_clickable_kanji_label(self, text: str) -> QLabel:
+    def _create_clickable_kanji_label(self, text: str) -> ClickableKanjiLabel:
         """
         Create label with clickable kanji characters.
         
@@ -241,45 +355,22 @@ class DictionaryPanel(QWidget):
             text: String containing kanji and possibly other characters
             
         Returns:
-            QLabel with clickable kanji
+            ClickableKanjiLabel with clickable kanji
         """
-        label = QLabel()
-        html_parts = []
-        
-        for char in text:
-            if self._is_kanji(char):
-                # Make kanji clickable with hover effect
-                html_parts.append(
-                    f'<span style="color: #0066cc; cursor: pointer; text-decoration: underline;" '
-                    f'onclick="window.kanji_clicked(\'{char}\')">{char}</span>'
-                )
-            else:
-                html_parts.append(char)
-        
-        label.setText(''.join(html_parts))
-        label.setTextFormat(Qt.TextFormat.RichText)
-        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        label.linkActivated.connect(lambda: None)  # Prevent default link handling
-        
-        # Connect click events (we'll handle this via mouse events)
-        label.mousePressEvent = lambda event: self._handle_kanji_click(text, event)
-        
-        return label
+        return ClickableKanjiLabel(text, is_header=False)
     
-    def _handle_kanji_click(self, text: str, event):
+    def _create_clickable_kanji_header(self, text: str) -> ClickableKanjiLabel:
         """
-        Handle click on kanji label - determine which kanji was clicked.
+        Create header label with clickable kanji characters (larger, prominent display).
         
         Args:
-            text: The full text of the label
-            event: Mouse event
+            text: String containing kanji and possibly other characters
+            
+        Returns:
+            ClickableKanjiLabel with clickable kanji formatted for headers
         """
-        # For simplicity, emit the first kanji found
-        # A more sophisticated approach would calculate click position
-        for char in text:
-            if self._is_kanji(char):
-                self.kanji_clicked.emit(char)
-                break
+        return ClickableKanjiLabel(text, is_header=True)
+    
     
     def _is_kanji(self, char: str) -> bool:
         """
@@ -368,20 +459,20 @@ class DictionaryPanel(QWidget):
         for idx, breadcrumb in enumerate(self._breadcrumbs):
             if idx > 0:
                 separator = QLabel(">")
-                separator.setStyleSheet("color: #888; margin: 0 4px;")
+                separator.setStyleSheet("color: #999; margin: 0 4px;")
                 self.breadcrumb_layout.insertWidget(idx * 2 - 1, separator)
             
             button = QPushButton(breadcrumb.label)
             button.setFlat(True)
             button.setStyleSheet(
                 "QPushButton { "
-                "color: #0066cc; "
+                "color: #66b3ff; "
                 "text-decoration: underline; "
                 "border: none; "
                 "padding: 4px 8px; "
                 "}"
                 "QPushButton:hover { "
-                "background-color: #f0f0f0; "
+                "background-color: #3d3d3d; "
                 "}"
             )
             button.clicked.connect(lambda checked, i=idx: self.breadcrumb_clicked.emit(i))

@@ -13,6 +13,7 @@ from manga_reader.coordinators import (
     ContextPanelCoordinator,
     ContextSyncCoordinator,
     SentenceAnalysisCoordinator,
+    DictionaryPanelCoordinator,
 )
 from manga_reader.io import DatabaseManager, LibraryRepository, VolumeIngestor
 from manga_reader.services import (
@@ -25,7 +26,7 @@ from manga_reader.services import (
     GeminiExplanationService,
     SettingsManager,
 )
-from manga_reader.ui import LibraryScreen, MainWindow, MangaCanvas, WordContextPanel, SentenceAnalysisPanel
+from manga_reader.ui import LibraryScreen, MainWindow, MangaCanvas, WordContextPanel, SentenceAnalysisPanel, DictionaryPanel
 
 
 def configure_qt_rendering() -> None:
@@ -102,11 +103,13 @@ def main():
     print("DEBUG: MangaCanvas created.")
     context_panel = WordContextPanel()
     sentence_panel = SentenceAnalysisPanel()
+    dictionary_panel = DictionaryPanel()
     main_window = MainWindow()
     print("DEBUG: MainWindow created.")
     main_window.set_canvas(canvas)
     main_window.set_context_panel(context_panel)
     main_window.set_sentence_panel(sentence_panel)
+    main_window.set_dictionary_panel(dictionary_panel)
     print("DEBUG: Canvas and panels attached to MainWindow.")
     
     # 4. Instantiate Coordinators (Dependency Injection)
@@ -138,6 +141,12 @@ def main():
         explanation_service=explanation_service,
         settings_manager=settings_manager,
     )
+
+    dictionary_panel_coordinator = DictionaryPanelCoordinator(
+        panel=dictionary_panel,
+        dictionary_service=dictionary_service,
+        main_window=main_window,
+    )
     
     # Create library coordinator (pass to reader controller)
     library_coordinator = LibraryCoordinator(
@@ -160,6 +169,7 @@ def main():
         library_coordinator=library_coordinator,
         sentence_analysis_coordinator=sentence_analysis_coordinator,
         sentence_analysis_panel=sentence_panel,
+        dictionary_panel_coordinator=dictionary_panel_coordinator,
     )
     print("DEBUG: ReaderController initialized.")
     
@@ -171,6 +181,9 @@ def main():
     canvas.view_word_context_requested.connect(controller.handle_view_word_context)
     # Route lemma-based context requests via context coordinator
     canvas.view_context_by_lemma_requested.connect(context_coordinator.handle_view_context_by_lemma)
+    # Route dictionary panel requests via dictionary panel coordinator
+    if dictionary_panel_coordinator:
+        canvas.show_full_definition_requested.connect(dictionary_panel_coordinator.handle_show_full_definition)
     
     # Route context panel appearance navigation with highlighting
     context_panel.appearance_clicked_with_coords.connect(

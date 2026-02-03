@@ -105,17 +105,19 @@ export class PopupManager {
             sensesHtml = `<div class="dict-empty">No definition found.</div>`;
         }
 
-        // Action buttons: Track (if not tracked) and View Context (if tracked)
+        // Action buttons: Track (if not tracked), View Context (if tracked), and Expand
         let actionsHtml = "";
         if (!notFound) {
             // Always create both buttons, but hide one based on tracked state
             let trackBtn = `<button class="dict-btn dict-btn-track" data-action="track" style="display: ${isTracked ? 'none' : 'block'};">+ Track Word</button>`;
             let contextBtn = `<button class="dict-btn dict-btn-context" data-action="view-context" style="display: ${isTracked ? 'block' : 'none'};">📋 View Context</button>`;
+            let expandBtn = `<button class="dict-btn dict-btn-expand" data-action="expand">🔍 Expand</button>`;
             
             actionsHtml = `
                 <div class="dict-actions">
                     ${trackBtn}
                     ${contextBtn}
+                    ${expandBtn}
                 </div>
             `;
         }
@@ -188,6 +190,11 @@ export class PopupManager {
         const contextBtn = this.popupEl.querySelector('[data-action="view-context"]');
         if (contextBtn) {
             contextBtn.addEventListener('click', () => this.handleViewContext());
+        }
+
+        const expandBtn = this.popupEl.querySelector('[data-action="expand"]');
+        if (expandBtn) {
+            expandBtn.addEventListener('click', () => this.handleExpand());
         }
     }
 
@@ -268,6 +275,23 @@ export class PopupManager {
 
         // Call Python handler via ChannelBridge
         this.channel.viewWordContext(lemma);
+    }
+
+    /**
+     * Handle expand button click to show full dictionary panel.
+     * 
+     * @private
+     */
+    handleExpand() {
+        if (!this.currentPayload || !this.channel) return;
+
+        const payload = this.currentPayload;
+        const lemma = payload.lemma || payload.surface || "";
+
+        // Call Python handler via QWebChannel
+        if (this.channel.showFullDefinition) {
+            this.channel.showFullDefinition(lemma);
+        }
     }
 }
 

@@ -295,6 +295,20 @@ class MainWindow(QMainWindow):
         self.sentence_panel.hide()
         # Default splitter sizes when sentence panel is shown alongside canvas
         self.splitter.setSizes([700, 200, 200])
+
+    def set_dictionary_panel(self, dictionary_panel):
+        """
+        Set the dictionary side panel and add it to the split view.
+        
+        Args:
+            dictionary_panel: DictionaryPanel widget instance
+        """
+        self.dictionary_panel = dictionary_panel
+        self.splitter.addWidget(dictionary_panel)
+        # Start with dictionary panel hidden
+        self.dictionary_panel.hide()
+        # Set initial splitter sizes (70/30 split when dictionary is visible)
+        self.splitter.setSizes([700, 300])
     
     def show_context_panel(self):
         """Show the context panel and adjust splitter."""
@@ -325,11 +339,29 @@ class MainWindow(QMainWindow):
         """Hide the sentence analysis panel."""
         if hasattr(self, "sentence_panel") and self.sentence_panel:
             self.sentence_panel.hide()
-            # Prefer two-pane layout if context panel is visible, else canvas full width
-            if hasattr(self, "context_panel") and self.context_panel and self.context_panel.isVisible():
-                self.splitter.setSizes([700, 300, 0])
-            else:
-                self.splitter.setSizes([1000, 0, 0])
+            # Reset splitter to full canvas
+            self.splitter.setSizes([1000, 0, 0])
+
+    def show_dictionary_panel(self):
+        """Show the dictionary side panel and adjust splitter."""
+        if hasattr(self, "dictionary_panel") and self.dictionary_panel:
+            # Hide other panels to avoid overlap
+            if hasattr(self, "context_panel") and self.context_panel:
+                self.context_panel.hide()
+            if hasattr(self, "sentence_panel") and self.sentence_panel:
+                self.sentence_panel.hide()
+            
+            self.dictionary_panel.show()
+            # Adjust splitter: [canvas, context, sentence, dictionary]
+            # Show only canvas (index 0) and dictionary (index 3)
+            self.splitter.setSizes([700, 0, 0, 300])
+
+    def hide_dictionary_panel(self):
+        """Hide the dictionary side panel."""
+        if hasattr(self, "dictionary_panel") and self.dictionary_panel:
+            self.dictionary_panel.hide()
+            # Reset splitter to full canvas
+            self.splitter.setSizes([1000, 0, 0, 0])
     
     def display_library_view(self, library_screen):
         """Switch to library screen view.

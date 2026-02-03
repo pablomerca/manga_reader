@@ -41,6 +41,7 @@ class ReaderController(QObject):
         library_coordinator: LibraryCoordinator,
         sentence_analysis_coordinator: SentenceAnalysisCoordinator,
         sentence_analysis_panel: SentenceAnalysisPanel,
+        dictionary_panel_coordinator=None,
     ):
         super().__init__()
         
@@ -69,6 +70,7 @@ class ReaderController(QObject):
         self.context_coordinator = context_coordinator
         self.context_sync_coordinator = context_sync_coordinator
         self.sentence_analysis_coordinator = sentence_analysis_coordinator
+        self.dictionary_panel_coordinator = dictionary_panel_coordinator
         self.sentence_panel = sentence_analysis_panel
         
         # Session state
@@ -224,6 +226,8 @@ class ReaderController(QObject):
             # Keep coordinators in sync with current session context
             self.word_interaction.set_volume_context(self.current_volume, self.current_page_number)
             self.context_coordinator.set_session_context(self.current_volume, self.view_mode, self.current_page_number)
+            if self.dictionary_panel_coordinator:
+                self.dictionary_panel_coordinator.set_session_context(self.current_volume, self.current_page_number)
         else:
             self.canvas.hide_dictionary_popup()
 

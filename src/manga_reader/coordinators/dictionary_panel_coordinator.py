@@ -172,8 +172,9 @@ class DictionaryPanelCoordinator(QObject):
 
     @Slot()
     def _on_panel_closed(self):
-        """Handle panel close - clear breadcrumb history."""
+        """Handle panel close - clear breadcrumb history and hide panel."""
         self.breadcrumb_stack = []
+        self.main_window.hide_dictionary_panel()
 
     @Slot(int)
     def handle_page_changed(self, page_index: int):

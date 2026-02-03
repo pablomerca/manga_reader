@@ -31,6 +31,8 @@ class WebConnector(QObject):
     trackWordSignal = Signal(str, str, str)  # lemma, reading, part_of_speech
     # Signal to notify Python that user wants to view context of a tracked word
     viewContextSignal = Signal(str)  # lemma
+    # Signal to notify Python that user wants to expand popup to full dictionary panel
+    showFullDefinitionSignal = Signal(str)  # lemma
 
     def __init__(self):
         super().__init__()
@@ -64,6 +66,12 @@ class WebConnector(QObject):
         print(f"DEBUG: Python received view context: lemma='{lemma}'")
         self.viewContextSignal.emit(lemma)
 
+    @Slot(str)
+    def showFullDefinition(self, lemma: str):
+        """Called from JS when user clicks Expand button in popup."""
+        print(f"DEBUG: Python received show full definition: lemma='{lemma}'")
+        self.showFullDefinitionSignal.emit(lemma)
+
 
 class MangaCanvas(QWidget):
     """Renders manga JPEG with vertical Japanese text overlays using QWebEngineView."""
@@ -80,6 +88,8 @@ class MangaCanvas(QWidget):
     view_word_context_requested = Signal(int)  # word_id
     # Signal emitted when user clicks View Context button in popup (by lemma)
     view_context_by_lemma_requested = Signal(str)  # lemma
+    # Signal emitted when user wants to expand popup to full dictionary panel
+    show_full_definition_requested = Signal(str)  # lemma
     
     def __init__(self, morphology_service: MorphologyService):
         super().__init__()
@@ -121,6 +131,8 @@ class MangaCanvas(QWidget):
         self.bridge.trackWordSignal.connect(self.track_word_requested)
         # Forward view context requests to canvas signal
         self.bridge.viewContextSignal.connect(self.view_context_by_lemma_requested)
+        # Forward show full definition requests to canvas signal
+        self.bridge.showFullDefinitionSignal.connect(self.show_full_definition_requested)
         
         layout.addWidget(self.web_view)
         
