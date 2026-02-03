@@ -25,15 +25,17 @@ class ClickableKanjiLabel(QLabel):
     """
     Custom QLabel that emits signal when individual kanji characters are clicked.
     Calculates which kanji was clicked based on cursor position.
+    Supports displaying furigana (kana reading) above the text.
     """
     
     kanji_clicked = Signal(str)  # Emits the clicked kanji character
     
-    def __init__(self, text: str = "", is_header: bool = False):
+    def __init__(self, text: str = "", is_header: bool = False, reading: str = ""):
         super().__init__()
         self.text_content = text
         self.is_header = is_header
-        self._render_clickable_kanji(text)
+        self.reading = reading
+        self._render_clickable_kanji(text, reading)
     
     def _is_kanji(self, char: str) -> bool:
         """Check if character is kanji."""
@@ -51,9 +53,16 @@ class ClickableKanjiLabel(QLabel):
             (0x2F800 <= code <= 0x2FA1F)  # CJK Compatibility Ideographs Supplement
         )
     
-    def _render_clickable_kanji(self, text: str):
-        """Render text with clickable kanji styled appropriately."""
+    def _render_clickable_kanji(self, text: str, reading: str = ""):
+        """Render text with clickable kanji styled appropriately, optionally with furigana."""
         html_parts = []
+        
+        # If reading is provided and this is a header, create a container with furigana above
+        if reading and self.is_header:
+            # Use a div with furigana positioned above using a table-like structure
+            html_parts.append('<div style="display: inline-block; text-align: center;">')
+            html_parts.append(f'<div style="font-size: 14px; color: #b0b0b0; line-height: 1.2;">{reading}</div>')
+            html_parts.append('<div style="line-height: 1.2;">')
         
         for char in text:
             if self._is_kanji(char):
@@ -74,6 +83,10 @@ class ClickableKanjiLabel(QLabel):
                     html_parts.append(f'<span style="font-size: 24px; font-weight: bold;">{char}</span>')
                 else:
                     html_parts.append(char)
+        
+        # Close the furigana container if it was opened
+        if reading and self.is_header:
+            html_parts.append('</div></div>')
         
         self.setText(''.join(html_parts))
         self.setTextFormat(Qt.TextFormat.RichText)
@@ -303,7 +316,9 @@ class DictionaryPanel(QWidget):
         word_layout.setSpacing(8)
         
         # Create the main word display - showing the SEARCHED LEMMA with clickable kanji
-        kanji_header_label = self._create_clickable_kanji_header(lemma)
+        # Get reading from entry's kana forms if available
+        reading = entry.kana_forms[0] if entry.kana_forms else ""
+        kanji_header_label = self._create_clickable_kanji_header(lemma, reading)
         kanji_header_label.kanji_clicked.connect(self.kanji_clicked.emit)
         word_layout.addWidget(kanji_header_label)
         word_layout.addStretch()
@@ -359,17 +374,18 @@ class DictionaryPanel(QWidget):
         """
         return ClickableKanjiLabel(text, is_header=False)
     
-    def _create_clickable_kanji_header(self, text: str) -> ClickableKanjiLabel:
+    def _create_clickable_kanji_header(self, text: str, reading: str = "") -> ClickableKanjiLabel:
         """
         Create header label with clickable kanji characters (larger, prominent display).
         
         Args:
             text: String containing kanji and possibly other characters
+            reading: Kana reading to display as furigana above the text
             
         Returns:
             ClickableKanjiLabel with clickable kanji formatted for headers
         """
-        return ClickableKanjiLabel(text, is_header=True)
+        return ClickableKanjiLabel(text, is_header=True, reading=reading)
     
     
     def _is_kanji(self, char: str) -> bool:
