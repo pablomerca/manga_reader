@@ -2,6 +2,7 @@
 
 from .context_panel_coordinator import ContextPanelCoordinator
 from .context_sync_coordinator import ContextSyncCoordinator
+from .dictionary_panel_coordinator import DictionaryPanelCoordinator
 from .library_coordinator import LibraryCoordinator
 from .reader_controller import ReaderController
 from .word_interaction_coordinator import WordInteractionCoordinator
@@ -12,6 +13,7 @@ __all__ = [
     "WordInteractionCoordinator",
     "ContextPanelCoordinator",
     "ContextSyncCoordinator",
+    "DictionaryPanelCoordinator",
     "LibraryCoordinator",
     "SentenceAnalysisCoordinator",
 ]
