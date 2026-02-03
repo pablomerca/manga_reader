@@ -28,6 +28,11 @@ export class PopupManager {
         const popup = this.createPopupElement(payload);
         this.positionPopup(popup, payload.mouseX || 0, payload.mouseY || 0);
         
+        // Prevent scroll events from propagating to parent (which handles zoom)
+        popup.addEventListener('wheel', (e) => {
+            e.stopPropagation();
+        }, { passive: false });
+        
         this.containerEl.appendChild(popup);
         this.popupEl = popup;
         
