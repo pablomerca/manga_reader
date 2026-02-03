@@ -297,6 +297,9 @@ export class PopupManager {
         if (this.channel.showFullDefinition) {
             this.channel.showFullDefinition(lemma);
         }
+        
+        // Close the popup after opening the side panel
+        this.hide();
     }
 }
 
