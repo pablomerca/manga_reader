@@ -279,12 +279,13 @@ class MangaCanvas(QWidget):
     def _calculate_font_size(self, block: OCRBlock) -> int:
         """
         Calculates the largest integer font size such that the text fills the block.
+        Accounts for CSS spacing and padding.
         """
         if not block.text_lines:
             return 12  # Default fallback
             
         # Constants
-        SAFETY_MARGIN = 0.90  # 90% to be safe against rendering quirks
+        SAFETY_MARGIN = 0.83  # 80% to account for vertical punctuation (!!!, ???, ...), letter-spacing, and padding
         MIN_FONT_SIZE = 10
         MAX_FONT_SIZE = 200
         
@@ -293,11 +294,11 @@ class MangaCanvas(QWidget):
         if max_chars == 0:
             return 12
             
-        # height = char_size * num_chars
+        # height = char_size * num_chars (accounting for letter-spacing in CSS)
         size_by_height = (block.height * SAFETY_MARGIN) / max_chars
         
         # 2. Width Constraint: All lines must fit horizontally
-        # width = font_size * num_lines
+        # width = font_size * num_lines (accounting for line-height in CSS)
         num_lines = len(block.text_lines)
         size_by_width = (block.width * SAFETY_MARGIN) / num_lines
         
