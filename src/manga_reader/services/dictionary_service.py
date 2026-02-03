@@ -60,6 +60,7 @@ class KanjiEntry:
 class BreadcrumbItem:
     """Breadcrumb trail item for dictionary panel navigation."""
 
+    # TODO: refactor to use inheritance instead of Union
     type: Literal["word", "kanji"]
     content: Union[DictionaryLookupResult, KanjiEntry]
     label: str
