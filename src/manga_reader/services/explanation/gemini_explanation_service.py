@@ -18,6 +18,7 @@ class GeminiExplanationService(ExplanationService):
     MODEL_NAME = "gemini-2.0-flash"
 
     PROMPT_TEMPLATE = """You are a Japanese language tutor explaining a sentence to an English learner.
+Do not use introductory phrases, filler words, or conversational sign-offs. Begin the response immediately with the first heading.
 
 Original Japanese: {original_jp}
 English Translation: {translation_en}
@@ -25,13 +26,13 @@ English Translation: {translation_en}
 [Instruction]
 Provide a short, concise explanation covering:
 
-1. **Semantic Parsing** — If the sentence contains uncommon grammar or complex structure, briefly explain the grammatical pattern and how it contributes to meaning.
-2. **Standard Form Suggestion (optional)** — Suggest the most common/standard way to express the same idea in conversational Japanese (for use in Jmdict-style lookups). Only if strictly relevant.
-3. **Idioms & Cultural Notes (optional)** — Explain any idioms, cultural references, or pragmatic nuances that a literal translation might miss. Only include if relevant.
+1. Semantic Parsing (Mandatory) — If the sentence contains uncommon grammar or complex structure, briefly explain the grammatical pattern and how it contributes to meaning, output in list items.
+2. Standard Form Suggestion (Optional) — Suggest the most common/standard way to express the same idea in conversational Japanese (for use in Jmdict-style lookups). Only if strictly relevant.
+3. Idioms & Cultural Notes (Optional) — Explain any idioms, cultural references, or pragmatic nuances that a literal translation might miss. Only include if relevant.
 
+No markdown formatting. Use plain text with CAPITAL HEADINGS for each section.
 Focus on what a learner would not immediately understand from the translation alone.
-Keep your response very concise and short, avoid redundancy and fillers.
-"""
+Constraint: Avoid "spoon-feeding" the user. Keep explanations extremely pithy. If the sentence is simple, standard, provide only the Semantic Parsing and nothing else."""
 
     def explain(self, original_jp: str, translation_en: str, api_key: str) -> ExplanationResult:
         """Generate a guided explanation grounded in translation context."""
