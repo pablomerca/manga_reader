@@ -1,28 +1,32 @@
 # Manga Reader
 
-A Linux desktop app for reading manga with Mokuro OCR overlays, inline dictionary lookups, and vocabulary tracking—built for Japanese learners.
+A desktop app for reading manga with OCR overlays, inline dictionary lookups, and vocabulary tracking—built for Japanese learners.
 
-## ✨ Key Features
+##  Key Features
 
-### 📖 Reading Experience
+###  Reading Experience
 - Open Mokuro volumes (.mokuro + images) with single or double-page layouts
+- Toggle between single-page and double-page (spread) modes with smart portrait/landscape detection
 - Zoom and pan with the mouse wheel; right-to-left page navigation
-- Lazy text rendering for smooth performance
+- Lazy text rendering for smooth performance—hover over blocks to reveal OCR text
 
-### 📚 Library Management
+###  Library Management
 - Persistent volume library with thumbnails and automatic sorting by recent use
 - Edit volume titles and relocate moved volumes
 - Quick access to all your manga in one place
+- Automatic thumbnail generation and caching from first page
+- Smart volume ordering by most recently accessed
 
-### 🔤 Dictionary & Vocabulary
+###  Dictionary & Vocabulary
 - Click words for instant dictionary definitions (powered by Jamdict)
 - Track words to your personal vocabulary list with automatic lemmatization
 - View all appearances of tracked words across the volume with context
-- Jump to any word appearance with automatic page navigation and highlighting
+- Kanji Navigation: Click kanji characters in dictionary entries to navigate through kanji definitions with breadcrumb trail
+- Click on word appearances to jump to exact location with visual highlight overlay
 - Smart verb tracking: conjugated forms (食べた, 食べている) automatically link to base form (食べる)
 - Support for nouns, verbs, auxiliary verbs, adjectives (i-adjectives, na-adjectives), and adverbs
 
-### 🤖 AI-Powered Sentence Analysis
+###  AI-Powered Sentence Analysis
 - Translate blocks with Google Gemini AI
 - Get detailed explanations of grammar, idioms, and cultural context
 - Results are cached per-volume for instant re-access
@@ -39,25 +43,32 @@ A Linux desktop app for reading manga with Mokuro OCR overlays, inline dictionar
 4. **Open a volume:** File → Open (Ctrl+O) and choose the folder with the `.mokuro` file and images
 
 ## Basic Usage
-- Navigate pages with ←/→ (RTL semantics); zoom with the mouse wheel
-- Click any word to see its definition; use "Track Word" to save it
+- Navigate pages with ←/→ ; zoom with the mouse wheel; pan by dragging
+- Hover over text blocks to reveal OCR text overlay on manga dialog
+- Click any word to open the pop up dictionary, which can be expanded to a side panel with full definitions
+- Click kanji characters in definitions to navigate through kanji entries (breadcrumb navigation)
+- Use "Track Word" to save words to your vocabulary list
 - Right-click blocks to open the sentence analysis panel for translation and explanation
-- Use the context panel (right side) to jump to any appearance of a tracked word
+- Click word appearances in context panel to jump to exact page with highlighted block
 - Ctrl+L opens your library; pick a volume to resume reading
 - Ctrl+V shows your vocabulary list (simple view)
+- Ctrl+T toggles between single-page and double-page spread modes
 
-## Controls at a Glance
-- Ctrl+O: Open volume
-- Ctrl+L: Library view
-- Ctrl+V: Vocabulary list (simple view)
-- Ctrl+Shift+S: Sync context (refresh tracked word appearances)
-- Ctrl+T: Toggle single/double page
-- ← / →: Page navigation (RTL)
-- Right-click block: Open sentence analysis panel
-- Escape: Close dialogs/panels
+## Controls 
+- **Ctrl+O**: Open volume
+- **Ctrl+L**: Library view with thumbnail grid
+- **Ctrl+V**: Vocabulary list (simple view)
+- **Ctrl+T**: Toggle single/double page display mode
+- **Ctrl+Shift+S**: Sync context (refresh tracked word appearances)
+- **← / →**: Page navigation (right-to-left reading order)
+- **Mouse wheel**: Zoom in/out
+- **Click + drag**: Pan while zoomed
+- **Click word**: Open dictionary side panel
+- **Click kanji**: Navigate to kanji entry (in dictionary panel)
+- **Escape**: Close dialogs/panels
 
 ## System Requirements
-- Linux (tested on Ubuntu/Pop!/Fedora)
+- Linux (tested on Ubuntu/PopOS)
 - Python 3.10+
 - Mokuro output: one `.mokuro` JSON plus matching page images (JPEG)
 - Google Gemini API key (optional, for translation/explanation features)
@@ -67,11 +78,13 @@ A Linux desktop app for reading manga with Mokuro OCR overlays, inline dictionar
 - Sample Mokuro data: `testVol/` and `testVol2/`
 
 ## Current Status
-- Core features complete: reading, library, vocabulary tracking, dictionary lookups
-- AI translation/explanation powered by Google Gemini (requires API key)
-- Smart morphological analysis with automatic verb conjugation handling
-- Comprehensive test suite with 166+ tests across all layers
-- Experimental noun highlighting; full vocabulary manager and Anki export coming soon
+- ✅ **Core reading features complete**: Single/double-page layouts, zoom/pan, lazy text rendering, RTL navigation
+- ✅ **Library management complete**: Persistent SQLite storage, thumbnail grid, volume relocation, title editing
+- ✅ **Dictionary system complete**: Full word lookups with Jamdict, kanji navigation with breadcrumbs, furigana display
+- ✅ **Vocabulary tracking complete**: Smart lemmatization, word appearances with context, block highlighting for navigation
+- ✅ **AI-powered analysis complete**: Google Gemini (gemini-2.0-flash) translation & explanation with caching
+- ✅ **Comprehensive test suite**: 166+ tests across all architectural layers
+- 🚧 **In progress**: Full vocabulary manager UI, Anki export functionality
 
 ## License
 TBD
