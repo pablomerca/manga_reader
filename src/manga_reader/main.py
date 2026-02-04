@@ -185,6 +185,10 @@ def main():
     if dictionary_panel_coordinator:
         canvas.show_full_definition_requested.connect(dictionary_panel_coordinator.handle_show_full_definition)
     
+    # Route first/last page navigation from canvas keyboard shortcuts to controller
+    canvas.first_page_requested.connect(controller.jump_to_first_page)
+    canvas.last_page_requested.connect(controller.jump_to_last_page)
+    
     # Route context panel appearance navigation with highlighting
     context_panel.appearance_clicked_with_coords.connect(
         controller.handle_navigate_to_appearance

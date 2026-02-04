@@ -300,6 +300,18 @@ class ReaderController(QObject):
             self.current_page_number = page_number
             self._render_current_page()
     
+    @Slot()
+    def jump_to_first_page(self):
+        """Jump to the first page of the current volume."""
+        if self.current_volume is not None:
+            self.jump_to_page(0)
+    
+    @Slot()
+    def jump_to_last_page(self):
+        """Jump to the last page of the current volume."""
+        if self.current_volume is not None:
+            self.jump_to_page(self.current_volume.total_pages - 1)
+    
     @Slot(str)
     def handle_view_mode_changed(self, mode: str):
         """

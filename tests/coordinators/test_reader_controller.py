@@ -578,6 +578,44 @@ class TestNavigation:
         # Should remain unchanged
         assert controller.current_page_number == 0
 
+    def test_jump_to_first_page(self, controller, sample_volume):
+        """Test jumping to first page."""
+        controller.current_volume = sample_volume
+        controller.current_page_number = 1  # Start at second page
+        
+        controller.jump_to_first_page()
+        
+        assert controller.current_page_number == 0
+
+    def test_jump_to_first_page_no_volume(self, controller):
+        """Test jumping to first page with no volume loaded."""
+        controller.current_volume = None
+        controller.current_page_number = 5
+        
+        controller.jump_to_first_page()
+        
+        # Should remain unchanged
+        assert controller.current_page_number == 5
+
+    def test_jump_to_last_page(self, controller, sample_volume):
+        """Test jumping to last page."""
+        controller.current_volume = sample_volume
+        controller.current_page_number = 0  # Start at first page
+        
+        controller.jump_to_last_page()
+        
+        assert controller.current_page_number == 1  # Last page (0-indexed)
+
+    def test_jump_to_last_page_no_volume(self, controller):
+        """Test jumping to last page with no volume loaded."""
+        controller.current_volume = None
+        controller.current_page_number = 0
+        
+        controller.jump_to_last_page()
+        
+        # Should remain unchanged
+        assert controller.current_page_number == 0
+
 
 # ============================================================================
 # Tests for view mode

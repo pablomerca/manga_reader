@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, Set
 
 from PySide6.QtCore import QEvent, QObject, Qt, QUrl, Signal, Slot
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
@@ -80,6 +81,9 @@ class MangaCanvas(QWidget):
     block_clicked = Signal(int, int)
     # Signal emitted for navigation (preventing browser scroll)
     navigation_requested = Signal(str) # "next" or "prev"
+    # Signals for first/last page navigation
+    first_page_requested = Signal()
+    last_page_requested = Signal()
     # Signal emitted when user clicks on a word (noun, verb, adjective, etc.)
     word_clicked = Signal(str, str, int, int, int, int)  # lemma, surface, mouse_x, mouse_y, page_index, block_id
     # Signal emitted when user wants to track a word
@@ -389,3 +393,34 @@ class MangaCanvas(QWidget):
         # Call JavaScript to draw the highlight rectangle
         script = f"window.highlightBlockAtCoordinates({x}, {y}, {width}, {height});"
         self.web_view.page().runJavaScript(script)
+    
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        """Handle keyboard events for Home and End key navigation.
+        
+        This event filter intercepts key press events from the web view
+        to handle Home and End key navigation before the web engine consumes them.
+        """
+        if event.type() == QEvent.Type.KeyPress and isinstance(event, QKeyEvent):
+            if event.key() == Qt.Key.Key_Home:
+                self.first_page_requested.emit()
+                return True
+            elif event.key() == Qt.Key.Key_End:
+                self.last_page_requested.emit()
+                return True
+        
+        return super().eventFilter(obj, event)
+    
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Handle keyboard input for first/last page navigation.
+        
+        Home: Jump to first page
+        End: Jump to last page
+        """
+        if event.key() == Qt.Key.Key_Home:
+            self.first_page_requested.emit()
+            event.accept()
+        elif event.key() == Qt.Key.Key_End:
+            self.last_page_requested.emit()
+            event.accept()
+        else:
+            super().keyPressEvent(event)

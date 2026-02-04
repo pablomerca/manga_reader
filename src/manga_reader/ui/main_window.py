@@ -210,6 +210,8 @@ class MainWindow(QMainWindow):
         - toggle_view_mode()
         - handle_open_vocabulary_list()
         - handle_sync_context_requested()
+        
+        Note: First/last page navigation is handled by MangaCanvas.
         """
         self._controller = controller
         # Signal wiring
