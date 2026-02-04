@@ -122,13 +122,17 @@ class VolumeIngestor:
             lines_data = block_data.get("lines", [])
             text_lines = [line for line in lines_data if isinstance(line, str)]
             
+            # Parse orientation from 'vertical' flag (default to vertical for Japanese manga)
+            is_vertical = block_data.get("vertical", True)
+            orientation = "vertical" if is_vertical else "horizontal"
+            
             return OCRBlock(
                 x=x,
                 y=y,
                 width=width,
                 height=height,
                 text_lines=text_lines,
-                orientation="vertical"
+                orientation=orientation
             )
             
         except Exception as e:

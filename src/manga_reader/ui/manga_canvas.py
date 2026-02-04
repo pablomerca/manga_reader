@@ -253,6 +253,7 @@ class MangaCanvas(QWidget):
                 "width": block.width,
                 "height": block.height,
                 "fontSize": font_size,
+                "orientation": block.orientation,  # "vertical" or "horizontal"
                 "lines": block.text_lines,
                 "words": [  # Metadata for JavaScript highlight wrapping (nouns + verbs)
                     {
@@ -279,28 +280,31 @@ class MangaCanvas(QWidget):
     def _calculate_font_size(self, block: OCRBlock) -> int:
         """
         Calculates the largest integer font size such that the text fills the block.
-        Accounts for CSS spacing and padding.
+        Accounts for CSS spacing (line-height: 1.5, letter-spacing: 2px) and padding.
+        Handles both vertical and horizontal text orientations.
         """
         if not block.text_lines:
             return 12  # Default fallback
             
         # Constants
-        SAFETY_MARGIN = 0.83  # 80% to account for vertical punctuation (!!!, ???, ...), letter-spacing, and padding
+        SAFETY_MARGIN = 0.80  # 80% to account for punctuation, letter-spacing, and padding
         MIN_FONT_SIZE = 10
         MAX_FONT_SIZE = 200
         
-        # 1. Height Constraint: Longest line must fit vertically
         max_chars = max((len(line) for line in block.text_lines), default=0)
         if max_chars == 0:
             return 12
-            
-        # height = char_size * num_chars (accounting for letter-spacing in CSS)
-        size_by_height = (block.height * SAFETY_MARGIN) / max_chars
         
-        # 2. Width Constraint: All lines must fit horizontally
-        # width = font_size * num_lines (accounting for line-height in CSS)
         num_lines = len(block.text_lines)
-        size_by_width = (block.width * SAFETY_MARGIN) / num_lines
+        
+        if block.orientation == "vertical":
+            # Vertical text: height = char_size * num_chars, width = font_size * num_lines
+            size_by_height = (block.height * SAFETY_MARGIN) / max_chars
+            size_by_width = (block.width * SAFETY_MARGIN) / num_lines
+        else:
+            # Horizontal text: width = char_size * num_chars, height = font_size * num_lines
+            size_by_width = (block.width * SAFETY_MARGIN) / max_chars
+            size_by_height = (block.height * SAFETY_MARGIN) / num_lines
         
         # Optimal size is the minimum of constraints
         optimal_size = min(size_by_height, size_by_width)

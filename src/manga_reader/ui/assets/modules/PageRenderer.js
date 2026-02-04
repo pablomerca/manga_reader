@@ -42,12 +42,14 @@ export class PageRenderer {
     /**
      * Create an OCR block element with text lines.
      * 
-     * @param {Object} block - Block data with position, dimensions, lines, words
+     * @param {Object} block - Block data with position, dimensions, lines, words, orientation
      * @returns {HTMLElement} Block element
      */
     createBlockElement(block) {
         const el = document.createElement("div");
-        el.className = "ocr-block";
+        // Apply base class and orientation-specific class
+        const isHorizontal = block.orientation === "horizontal";
+        el.className = isHorizontal ? "ocr-block ocr-block--horizontal" : "ocr-block";
         el.dataset.blockId = String(block.id);
         el.style.left = block.x + "px";
         el.style.top = block.y + "px";
@@ -68,7 +70,8 @@ export class PageRenderer {
             
             block.lines.forEach((lineText) => {
                 const lineEl = document.createElement("div");
-                lineEl.className = "ocr-line";
+                // Apply base class and orientation-specific class
+                lineEl.className = isHorizontal ? "ocr-line ocr-line--horizontal" : "ocr-line";
                 
                 // Filter words that belong to this line
                 const lineStart = currentOffset;

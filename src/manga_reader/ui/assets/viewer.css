@@ -85,6 +85,26 @@ body {
     opacity: 1;
 }
 
+/* Horizontal text blocks use normal flex direction (left to right) */
+.ocr-block--horizontal {
+    flex-direction: column; /* Stack lines vertically for horizontal text */
+}
+
+/* Horizontal text lines use normal writing mode */
+.ocr-line--horizontal {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    white-space: normal; /* Allow wrapping for horizontal text */
+    /* Override padding for horizontal layout - reduce vertical padding */
+    padding: 0;
+    /* Remove letter-spacing for horizontal text (it's designed for vertical) */
+    letter-spacing: 0;
+    /* Increase line-height to prevent vertical overflow */
+    line-height: 1.4;
+    /* Override overflow for horizontal text to allow natural text flow */
+    overflow: visible;
+}
+
 /* Word element styling for interactive lookup */
 .word {
     cursor: pointer;
