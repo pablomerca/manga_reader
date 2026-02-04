@@ -31,8 +31,8 @@ def test_calculate_font_size_height_constraint(manga_canvas):
     
     size = manga_canvas._calculate_font_size(block)
     
-    # Expected: (400 * 0.90) / 10 = 36
-    assert size == 36
+    # Expected: (400 * 0.80) / 10 = 32
+    assert size == 32
 
 def test_calculate_font_size_width_constraint(manga_canvas):
     """Test font size calculation when limited by width."""
@@ -42,8 +42,8 @@ def test_calculate_font_size_width_constraint(manga_canvas):
     
     size = manga_canvas._calculate_font_size(block)
     
-    # Expected: (100 * 0.90) / 5 = 18
-    assert size == 18
+    # Expected: (100 * 0.80) / 5 = 16
+    assert size == 16
 
 def test_calculate_font_size_min_limit(manga_canvas):
     """Test that font size does not go below minimum."""
