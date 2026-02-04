@@ -25,6 +25,8 @@ class MainWindow(QMainWindow):
     previous_page = Signal()
     # Signal emitted when view mode changes
     view_mode_changed = Signal(str)  # "single" or "double"
+    # Signal emitted when user wants to toggle between view modes
+    toggle_view_mode = Signal()
     # Signal emitted when user wants to open vocabulary list
     open_vocabulary_requested = Signal()
     # Signal emitted when user wants to return to library
@@ -94,23 +96,31 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         
         # Create action group for exclusive selection
-        view_mode_group = QActionGroup(self)
-        view_mode_group.setExclusive(True)
+        self._view_mode_group = QActionGroup(self)
+        self._view_mode_group.setExclusive(True)
         
         # Single Page action
-        single_page_action = QAction("&Single Page", self)
-        single_page_action.setCheckable(True)
-        single_page_action.setChecked(True)  # Default
-        single_page_action.triggered.connect(lambda: self._on_view_mode_changed("single"))
-        view_mode_group.addAction(single_page_action)
-        view_menu.addAction(single_page_action)
+        self._single_page_action = QAction("&Single Page", self)
+        self._single_page_action.setCheckable(True)
+        self._single_page_action.setChecked(True)  # Default
+        self._single_page_action.triggered.connect(lambda: self._on_view_mode_changed("single"))
+        self._view_mode_group.addAction(self._single_page_action)
+        view_menu.addAction(self._single_page_action)
         
         # Double Page action
-        double_page_action = QAction("&Double Page", self)
-        double_page_action.setCheckable(True)
-        double_page_action.triggered.connect(lambda: self._on_view_mode_changed("double"))
-        view_mode_group.addAction(double_page_action)
-        view_menu.addAction(double_page_action)
+        self._double_page_action = QAction("&Double Page", self)
+        self._double_page_action.setCheckable(True)
+        self._double_page_action.triggered.connect(lambda: self._on_view_mode_changed("double"))
+        self._view_mode_group.addAction(self._double_page_action)
+        view_menu.addAction(self._double_page_action)
+        
+        view_menu.addSeparator()
+        
+        # Toggle View Mode action
+        toggle_view_mode_action = QAction("&Toggle View Mode", self)
+        toggle_view_mode_action.setShortcut("Ctrl+T")
+        toggle_view_mode_action.triggered.connect(self.toggle_view_mode.emit)
+        view_menu.addAction(toggle_view_mode_action)
         
         # Dictionary menu
         dictionary_menu = menu_bar.addMenu("&Dictionary")
@@ -130,6 +140,17 @@ class MainWindow(QMainWindow):
     def _on_view_mode_changed(self, mode: str):
         """Handle view mode change."""
         self.view_mode_changed.emit(mode)
+    
+    def update_view_mode_menu(self, mode: str):
+        """Update the menu to reflect the current view mode.
+        
+        Args:
+            mode: Either "single" or "double"
+        """
+        if mode == "single":
+            self._single_page_action.setChecked(True)
+        elif mode == "double":
+            self._double_page_action.setChecked(True)
     
     def _on_open_vocabulary(self):
         """Handle the Open Vocabulary menu action."""
@@ -186,6 +207,7 @@ class MainWindow(QMainWindow):
         - next_page()
         - previous_page()
         - handle_view_mode_changed(str)
+        - toggle_view_mode()
         - handle_open_vocabulary_list()
         - handle_sync_context_requested()
         """
@@ -195,8 +217,12 @@ class MainWindow(QMainWindow):
         self.next_page.connect(controller.next_page)
         self.previous_page.connect(controller.previous_page)
         self.view_mode_changed.connect(controller.handle_view_mode_changed)
+        self.toggle_view_mode.connect(controller.toggle_view_mode)
         self.open_vocabulary_requested.connect(controller.handle_open_vocabulary_list)
         self.sync_context_requested.connect(controller.handle_sync_context_requested)
+        
+        # Listen to view mode changes from controller (e.g., from hotkey toggle)
+        controller.view_mode_updated.connect(self.update_view_mode_menu)
     
     def show_error(self, title: str, message: str):
         """Display an error message to the user."""

@@ -65,6 +65,10 @@ class ViewMode(ABC):
         """Return the view mode to use while viewing context (defaults to self)."""
         return self
 
+    @abstractmethod
+    def toggle(self) -> ViewMode:
+        """Return the toggled view mode (single <-> double)."""
+
 
 class SinglePageMode(ViewMode):
     name = "single"
@@ -98,6 +102,9 @@ class SinglePageMode(ViewMode):
             return current_page_number - 1
         return current_page_number
 
+    def toggle(self) -> ViewMode:
+        """Toggle from single to double page mode."""
+        return DOUBLE_PAGE_MODE
 
 class DoublePageMode(ViewMode):
     name = "double"
@@ -184,6 +191,9 @@ class DoublePageMode(ViewMode):
     def context_view_mode(self) -> ViewMode:
         return SINGLE_PAGE_MODE
 
+    def toggle(self) -> ViewMode:
+        """Toggle from double to single page mode."""
+        return SINGLE_PAGE_MODE
 
 SINGLE_PAGE_MODE = SinglePageMode()
 DOUBLE_PAGE_MODE = DoublePageMode()

@@ -618,6 +618,56 @@ class TestViewMode:
         # State remains unchanged after exception
         assert controller.view_mode.name == "single"
 
+    def test_toggle_view_mode_single_to_double(self, controller, sample_volume, mock_canvas):
+        """Test toggling from single to double page mode."""
+        controller.current_volume = sample_volume
+        controller.view_mode = SINGLE_PAGE_MODE
+        
+        controller.toggle_view_mode()
+        
+        assert controller.view_mode.name == "double"
+        mock_canvas.render_pages.assert_called()
+
+    def test_toggle_view_mode_double_to_single(self, controller, sample_volume, mock_canvas):
+        """Test toggling from double to single page mode."""
+        controller.current_volume = sample_volume
+        controller.view_mode = DOUBLE_PAGE_MODE
+        
+        controller.toggle_view_mode()
+        
+        assert controller.view_mode.name == "single"
+        mock_canvas.render_pages.assert_called()
+
+    def test_toggle_view_mode_emits_signal_single_to_double(self, controller, sample_volume):
+        """Test that toggle emits view_mode_updated signal with correct mode."""
+        from unittest.mock import MagicMock
+        controller.current_volume = sample_volume
+        controller.view_mode = SINGLE_PAGE_MODE
+        
+        # Connect to the signal
+        signal_spy = MagicMock()
+        controller.view_mode_updated.connect(signal_spy)
+        
+        controller.toggle_view_mode()
+        
+        # Verify signal was emitted with the new mode name
+        signal_spy.assert_called_once_with("double")
+
+    def test_toggle_view_mode_emits_signal_double_to_single(self, controller, sample_volume):
+        """Test that toggle emits view_mode_updated signal with correct mode."""
+        from unittest.mock import MagicMock
+        controller.current_volume = sample_volume
+        controller.view_mode = DOUBLE_PAGE_MODE
+        
+        # Connect to the signal
+        signal_spy = MagicMock()
+        controller.view_mode_updated.connect(signal_spy)
+        
+        controller.toggle_view_mode()
+        
+        # Verify signal was emitted with the new mode name
+        signal_spy.assert_called_once_with("single")
+
 
 # =========================================================================
 # Tests for context synchronization wiring

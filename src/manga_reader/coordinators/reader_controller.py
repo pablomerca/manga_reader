@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QTimer, Slot
+from PySide6.QtCore import QObject, QTimer, Signal, Slot
 
 from manga_reader.coordinators.library_coordinator import LibraryCoordinator
 from manga_reader.core import MangaVolume
@@ -28,6 +28,9 @@ class ReaderController(QObject):
     Central Nervous System of the application.
     Manages live session state and routes signals between UI and services.
     """
+    
+    # Signal emitted when view mode is changed (by any means: menu or hotkey)
+    view_mode_updated = Signal(str)  # "single" or "double"
     
     def __init__(
         self,
@@ -307,6 +310,17 @@ class ReaderController(QObject):
         """
         # Will raise if invalid, surfacing programming errors early
         self.view_mode = create_view_mode(mode)
+        self._render_current_page()
+
+    @Slot()
+    def toggle_view_mode(self):
+        """
+        Toggle between single and double page view modes.
+        Delegates to the current view mode's toggle() method via polymorphism.
+        Emits view_mode_updated signal to notify UI of the change.
+        """
+        self.view_mode = self.view_mode.toggle()
+        self.view_mode_updated.emit(self.view_mode.name)
         self._render_current_page()
 
     # Slots to handle requests from ContextPanelCoordinator
