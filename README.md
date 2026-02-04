@@ -45,14 +45,31 @@ A desktop app for reading manga with OCR overlays, inline dictionary lookups, an
 ## Basic Usage
 - Navigate pages with ←/→ ; zoom with the mouse wheel; pan by dragging
 - Hover over text blocks to reveal OCR text overlay on manga dialog
+  
+ https://github.com/user-attachments/assets/07d65a46-4f89-4e86-a7f0-7412e3b3b0b3
+
 - Click any word to open the pop up dictionary, which can be expanded to a side panel with full definitions
+  
+https://github.com/user-attachments/assets/d083a2d7-ee24-44c5-82f6-abba077bfb5e
+
 - Click kanji characters in definitions to navigate through kanji entries (breadcrumb navigation)
+  
+https://github.com/user-attachments/assets/ba85a888-6178-41bc-8c69-b4d52cc77968
+
 - Use "Track Word" to save words to your vocabulary list
 - Right-click blocks to open the sentence analysis panel for translation and explanation
-- Click word appearances in context panel to jump to exact page with highlighted block
+  
+https://github.com/user-attachments/assets/b9f8e5d3-67c6-4238-8c34-c21adc163450
+
+- Click word appearances in context panel to jump (even across different manga volumes!) to exact page with highlighted blocks
+  
+https://github.com/user-attachments/assets/958a5577-24fa-4391-8aed-cbd6219cb26b
+
 - Ctrl+L opens your library; pick a volume to resume reading
 - Ctrl+V shows your vocabulary list (simple view)
 - Ctrl+T toggles between single-page and double-page spread modes
+
+
 
 ## Controls 
 - **Ctrl+O**: Open volume
