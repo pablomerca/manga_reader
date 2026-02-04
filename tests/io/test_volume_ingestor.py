@@ -11,7 +11,7 @@ from manga_reader.io import VolumeIngestor
 def test_volume_ingestor_loads_mokuro_volume():
     """Test that VolumeIngestor successfully loads a Mokuro volume."""
     # Path to test volume
-    test_vol_path = Path(__file__).parent.parent.parent / "testVol"
+    test_vol_path = Path(__file__).parent.parent / "test_assets" / "testVol"
     
     assert test_vol_path.exists(), f"Test volume not found at: {test_vol_path}"
     
@@ -26,7 +26,7 @@ def test_volume_ingestor_loads_mokuro_volume():
 
 def test_volume_ingestor_loads_first_page():
     """Test that VolumeIngestor correctly loads the first page with OCR data."""
-    test_vol_path = Path(__file__).parent.parent.parent / "testVol"
+    test_vol_path = Path(__file__).parent.parent / "test_assets" / "testVol"
     
     ingestor = VolumeIngestor()
     volume = ingestor.ingest_volume(test_vol_path)
